@@ -1,5 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { getDashboardSummary, getDashboardRecentTransactions } from "../lib/api.js";
+import {
+  TrendingUp,
+  ShoppingCart,
+  Receipt,
+  Wallet,
+  Users,
+  Building2,
+  Plus,
+  ArrowRight,
+  ChevronDown,
+  Calendar,
+  FileText,
+  DollarSign,
+  PieChart,
+  BarChart2
+} from "lucide-react";
 
 // ── Navigation mega-menu config ───────────────────────────────────────────────
 const NAV_COLUMNS = [
@@ -95,30 +111,61 @@ export default function Dashboard({ authUser, onNavigate }) {
 
   return (
     <div className="dash-page">
-      {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="dash-page-header">
+
+      {/* ── 1. Hero Page Header Banner ───────────────────────────────────────── */}
+      <div style={{
+        background: "linear-gradient(135deg, #594236 0%, #6f584b 100%)",
+        borderRadius: "16px",
+        padding: "24px 28px",
+        color: "#ffffff",
+        marginBottom: "22px",
+        boxShadow: "0 8px 24px rgba(89, 66, 54, 0.18)",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "16px"
+      }}>
         <div>
-          <p className="breadcrumb">Home / Dashboard</p>
-          <h1>Dashboard</h1>
-          <p className="subtitle">
-            {greeting}, <strong>{authUser?.loginId || "User"}</strong>.
-            Here's your business overview.
+          <p style={{ margin: "0 0 4px 0", fontSize: "11px", color: "#ccdde2", textTransform: "uppercase", letterSpacing: "1px", fontWeight: "700" }}>
+            Financial Accounting ERP
+          </p>
+          <h1 style={{ margin: 0, fontSize: "24px", fontWeight: "800", letterSpacing: "-0.5px", color: "#ffffff" }}>
+            {greeting}, {authUser?.loginId || "User"}
+          </h1>
+          <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#ccdde2", opacity: 0.9 }}>
+            Here is your live accounting summary & business metrics for today.
           </p>
         </div>
-        <div className="dash-header-meta">
-          <span className="dash-date">
-            {new Date().toLocaleDateString("en-IN", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
-          </span>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ background: "rgba(204, 221, 226, 0.12)", padding: "8px 14px", borderRadius: "10px", border: "1px solid rgba(204, 221, 226, 0.2)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Calendar size={16} style={{ color: "#48acf0" }} />
+            <div>
+              <span style={{ fontSize: "10px", color: "#ccdde2", display: "block", lineHeight: "1" }}>System Date</span>
+              <span style={{ fontSize: "13px", fontWeight: "700", color: "#ffffff" }}>
+                {new Date().toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => handleNavItem("Sales")}
+            style={{
+              background: "#48acf0", color: "#ffffff", border: "none",
+              padding: "10px 18px", borderRadius: "10px", fontSize: "13px",
+              fontWeight: "700", cursor: "pointer", display: "flex",
+              alignItems: "center", gap: "6px", boxShadow: "0 4px 14px rgba(72, 172, 240, 0.4)",
+              transition: "transform 0.15s ease"
+            }}
+          >
+            <Plus size={16} /> Quick Order
+          </button>
         </div>
       </div>
 
-      {/* ── Module Navigation Bar ──────────────────────────────────── */}
-      <div className="dash-nav-bar" ref={menuRef}>
+      {/* ── 2. Module Navigation Bar ────────────────────────────────────────── */}
+      <div className="dash-nav-bar" ref={menuRef} style={{ marginBottom: "22px" }}>
         <div className="dash-tabs">
           {NAV_COLUMNS.map((col) => (
             <button
@@ -128,9 +175,7 @@ export default function Dashboard({ authUser, onNavigate }) {
               aria-expanded={openTab === col.key}
             >
               {col.key}
-              <svg className="dash-tab-caret" width="10" height="6" viewBox="0 0 10 6">
-                <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-              </svg>
+              <ChevronDown size={14} className="dash-tab-caret" style={{ transform: openTab === col.key ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
             </button>
           ))}
         </div>
@@ -158,17 +203,17 @@ export default function Dashboard({ authUser, onNavigate }) {
         )}
       </div>
 
-      {/* ── Summary Sections ───────────────────────────────────────── */}
+      {/* ── 3. Summary Sections Grid ─────────────────────────────────────────── */}
       <div className="dash-sections">
         {/* Sales */}
         <div className="dash-section-card">
           <div className="dash-section-header">
             <div>
               <h3 className="dash-section-title">Sales</h3>
-              <p className="dash-section-sub">Customers & total sales</p>
+              <p className="dash-section-sub">Customers & total sales revenue</p>
             </div>
             <button className="dash-action-btn dash-btn-primary" onClick={() => handleNavItem("Sales")}>
-              + New
+              <Plus size={14} /> New
             </button>
           </div>
           <div className="dash-stat-row">
@@ -182,7 +227,9 @@ export default function Dashboard({ authUser, onNavigate }) {
             </button>
           </div>
           <div className="dash-section-footer">
-            <button className="dash-view-link" onClick={() => handleNavItem("Sales")}>View Sales →</button>
+            <button className="dash-view-link" onClick={() => handleNavItem("Sales")}>
+              View Sales Orders <ArrowRight size={14} />
+            </button>
           </div>
         </div>
 
@@ -194,7 +241,7 @@ export default function Dashboard({ authUser, onNavigate }) {
               <p className="dash-section-sub">Vendors & total purchases</p>
             </div>
             <button className="dash-action-btn dash-btn-primary" onClick={() => handleNavItem("Purchases")}>
-              + New
+              <Plus size={14} /> New
             </button>
           </div>
           <div className="dash-stat-row">
@@ -208,7 +255,9 @@ export default function Dashboard({ authUser, onNavigate }) {
             </button>
           </div>
           <div className="dash-section-footer">
-            <button className="dash-view-link" onClick={() => handleNavItem("Purchases")}>View Purchases →</button>
+            <button className="dash-view-link" onClick={() => handleNavItem("Purchases")}>
+              View Purchase Orders <ArrowRight size={14} />
+            </button>
           </div>
         </div>
 
@@ -216,8 +265,8 @@ export default function Dashboard({ authUser, onNavigate }) {
         <div className="dash-section-card">
           <div className="dash-section-header">
             <div>
-              <h3 className="dash-section-title">Accounting</h3>
-              <p className="dash-section-sub">Bank balance & profit</p>
+              <h3 className="dash-section-title">Accounting Overview</h3>
+              <p className="dash-section-sub">Bank balance & net profit</p>
             </div>
             <button className="dash-action-btn dash-btn-secondary" onClick={() => handleNavItem("Reports")}>
               Reports
@@ -234,46 +283,60 @@ export default function Dashboard({ authUser, onNavigate }) {
             </button>
           </div>
           <div className="dash-section-footer">
-            <button className="dash-view-link" onClick={() => handleNavItem("Reports")}>View Reports →</button>
+            <button className="dash-view-link" onClick={() => handleNavItem("Reports")}>
+              View Financial Reports <ArrowRight size={14} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ── Quick Stats Row ────────────────────────────────────────── */}
+      {/* ── 4. Quick KPI Stats Row ───────────────────────────────────────────── */}
       <div className="dash-quick-stats">
         <div className="dash-qs-card">
-          <div className="dash-qs-icon" style={{ background: "#eff6ff", color: "#1d4ed8" }}>₹</div>
+          <div className="dash-qs-icon" style={{ background: "#e6f4fe", color: "#48acf0" }}>
+            <TrendingUp size={22} />
+          </div>
           <div>
             <p className="dash-qs-label">Total Sales</p>
-            <p className="dash-qs-val">{formatMoney(summary?.total_sales)}</p>
+            <p className="dash-qs-val" style={{ color: "#594236" }}>{formatMoney(summary?.total_sales)}</p>
             <span className="dash-qs-badge green">Income: {formatMoney(summary?.total_income)}</span>
           </div>
         </div>
+
         <div className="dash-qs-card">
-          <div className="dash-qs-icon" style={{ background: "#fff7ed", color: "#c2410c" }}>🛒</div>
+          <div className="dash-qs-icon" style={{ background: "#fff7ed", color: "#c2410c" }}>
+            <ShoppingCart size={22} />
+          </div>
           <div>
             <p className="dash-qs-label">Total Purchases</p>
-            <p className="dash-qs-val">{formatMoney(summary?.total_purchases)}</p>
+            <p className="dash-qs-val" style={{ color: "#594236" }}>{formatMoney(summary?.total_purchases)}</p>
             <span className="dash-qs-badge red">Expenses: {formatMoney(summary?.total_expenses)}</span>
           </div>
         </div>
+
         <div className="dash-qs-card">
-          <div className="dash-qs-icon" style={{ background: "#f0fdf4", color: "#166534" }}>📥</div>
+          <div className="dash-qs-icon" style={{ background: "#f0fdf4", color: "#166534" }}>
+            <FileText size={22} />
+          </div>
           <div>
             <p className="dash-qs-label">Outstanding Invoices</p>
-            <p className="dash-qs-val">{formatMoney(summary?.outstanding_invoices)}</p>
+            <p className="dash-qs-val" style={{ color: "#594236" }}>{formatMoney(summary?.outstanding_invoices)}</p>
             <span className="dash-qs-badge green">Bills: {formatMoney(summary?.outstanding_bills)}</span>
           </div>
         </div>
+
         <div className="dash-qs-card">
-          <div className="dash-qs-icon" style={{ background: "#fdf4ff", color: "#7e22ce" }}>📊</div>
+          <div className="dash-qs-icon" style={{ background: "#ccdde2", color: "#594236" }}>
+            <PieChart size={22} />
+          </div>
           <div>
-            <p className="dash-qs-label">Net Profit</p>
-            <p className="dash-qs-val">{formatMoney(summary?.net_profit)}</p>
+            <p className="dash-qs-label">Net Operating Profit</p>
+            <p className="dash-qs-val" style={{ color: "#594236" }}>{formatMoney(summary?.net_profit)}</p>
             <span className="dash-qs-badge green">Cash/Bank: {formatMoney(summary?.cash_bank_balance)}</span>
           </div>
         </div>
       </div>
+
     </div>
   );
 }

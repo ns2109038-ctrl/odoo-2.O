@@ -121,6 +121,56 @@ export async function registerUser({ name, login_id, email, password, confirm_pa
   return res.json();
 }
 
+export async function request2FA(login_id, method = "email", digits = 6) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/users/request-2fa`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login_id, method, digits }),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
+export async function verify2FA(login_id, otp) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/users/verify-2fa`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login_id, otp }),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
+export async function requestPasswordReset(identifier) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/users/request-reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier }),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
+export const resetPasswordWithToken = (token, new_password) => apiRequest("/api/users/reset-password", { method: "POST", body: JSON.stringify({ token, new_password }) });
+export const getLoginHistory = (userId) => apiRequest(`/api/users/${userId || 'me'}/login-history`);
+export const getActiveSessions = (userId) => apiRequest(`/api/users/${userId || 'me'}/active-sessions`);
+
+
 // ── 2. Users ────────────────────────────────────────────────────────────────
 export const getUsers = (params = {}) => {
   const query = new URLSearchParams();
