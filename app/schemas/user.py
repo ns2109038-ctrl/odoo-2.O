@@ -1,22 +1,60 @@
-from typing import Literal
+import re
+from typing import Optional, Literal
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator
 
 
+def validate_password_strength(password: str) -> None:
+    if len(password) < 8:
+        raise ValueError("Password must be at least 8 characters long")
+    if len(password.encode("utf-8")) > 72:
+        raise ValueError("Password cannot exceed 72 bytes")
+    if not re.search(r"[A-Z]", password):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not re.search(r"[a-z]", password):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=\[\]\\;'/`~]", password) and not re.search(r"[^a-zA-Z0-9\s]", password):
+        raise ValueError("Password must contain at least one special character")
+
+
 class UserCreate(BaseModel):
-    name: str = Field(..., min_length=2, max_length=100, description="Full Name of User")
-    login_id: str = Field(..., min_length=6, max_length=12, description="Unique Login ID")
+    name: str = Field(..., min_length=1, max_length=100, description="Full Name of User")
+    login_id: str = Field(..., min_length=3, max_length=50, description="Unique Login ID")
     email: EmailStr = Field(..., description="User Email Address")
-    role: Literal["admin", "accountant", "contact"] = Field(..., description="User Role")
-    password: str = Field(..., min_length=8, description="Password (at least 8 characters)")
+    password: str = Field(..., description="Password (at least 8 characters, uppercase, lowercase, special char)")
     confirm_password: str = Field(..., description="Password Confirmation")
+    role: Literal["admin", "accountant", "user", "contact"] = Field(
+        default="user",
+        description="User Role (admin, accountant, user)"
+    )
 
     @model_validator(mode="after")
-    def validate_passwords(self):
-        if len(self.password.encode("utf-8")) > 72:
-            raise ValueError("Password cannot exceed 72 bytes")
+    def validate_user_create(self):
+        validate_password_strength(self.password)
         if self.password != self.confirm_password:
             raise ValueError("Passwords do not match")
         return self
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    login_id: Optional[str] = Field(None, min_length=3, max_length=50)
+    email: Optional[EmailStr] = None
+    role: Optional[Literal["admin", "accountant", "user", "contact"]] = None
+    password: Optional[str] = None
+    confirm_password: Optional[str] = None
+    is_active: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def validate_user_update(self):
+        if self.password is not None:
+            validate_password_strength(self.password)
+            if self.password != self.confirm_password:
+                raise ValueError("Passwords do not match")
+        return self
+
+
+class UserStatusUpdate(BaseModel):
+    is_active: bool = Field(..., description="Active status flag of the user")
 
 
 class UserResponse(BaseModel):

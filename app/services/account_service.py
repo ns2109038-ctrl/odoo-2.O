@@ -6,20 +6,27 @@ from app.schemas.account import AccountCreate, AccountUpdate
 
 
 def create_account(db: Session, account_data: AccountCreate) -> Account:
-    normalized_name = account_data.account_name.strip()
-
-    # Check for duplicate account name (case-insensitive)
-    existing = (
+    # Check for duplicate account code (case-insensitive)
+    existing_code = (
         db.query(Account)
-        .filter(func.lower(Account.account_name) == func.lower(normalized_name))
+        .filter(func.lower(Account.code) == func.lower(account_data.code))
         .first()
     )
-    if existing:
-        raise ValueError(f"Account with name '{normalized_name}' already exists.")
+    if existing_code:
+        raise ValueError(f"Account with code '{account_data.code}' already exists.")
+
+    # Validate parent_id exists (if provided)
+    if account_data.parent_id is not None:
+        parent = db.query(Account).filter(Account.id == account_data.parent_id).first()
+        if not parent:
+            raise ValueError(f"Parent account with id {account_data.parent_id} does not exist.")
 
     new_account = Account(
-        account_name=normalized_name,
+        code=account_data.code,
+        name=account_data.name,
+        account_name=account_data.name,  # keep legacy column in sync
         account_type=account_data.account_type,
+        parent_id=account_data.parent_id,
         description=account_data.description,
         is_active=account_data.is_active,
     )
@@ -35,13 +42,19 @@ def get_accounts(
     limit: int = 100,
     is_active: Optional[bool] = None,
     account_type: Optional[str] = None,
+    search: Optional[str] = None,
 ) -> List[Account]:
     query = db.query(Account)
     if is_active is not None:
         query = query.filter(Account.is_active == is_active)
     if account_type:
-        query = query.filter(Account.account_type == account_type)
-    return query.order_by(Account.id.asc()).offset(skip).limit(limit).all()
+        query = query.filter(Account.account_type == account_type.lower())
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.filter(
+            Account.name.ilike(pattern) | Account.code.ilike(pattern)
+        )
+    return query.order_by(Account.code.asc()).offset(skip).limit(limit).all()
 
 
 def get_account(db: Session, account_id: int) -> Optional[Account]:
@@ -57,22 +70,34 @@ def update_account(
 
     update_dict = account_data.model_dump(exclude_unset=True)
 
-    if "account_name" in update_dict and update_dict["account_name"]:
-        new_name = update_dict["account_name"].strip()
+    # Validate code uniqueness if changing
+    if "code" in update_dict and update_dict["code"]:
+        new_code = update_dict["code"]
         duplicate = (
             db.query(Account)
             .filter(
-                func.lower(Account.account_name) == func.lower(new_name),
+                func.lower(Account.code) == func.lower(new_code),
                 Account.id != account_id,
             )
             .first()
         )
         if duplicate:
-            raise ValueError(f"Account with name '{new_name}' already exists.")
-        update_dict["account_name"] = new_name
+            raise ValueError(f"Account with code '{new_code}' already exists.")
+
+    # Validate parent_id if provided
+    if "parent_id" in update_dict and update_dict["parent_id"] is not None:
+        if update_dict["parent_id"] == account_id:
+            raise ValueError("An account cannot be its own parent.")
+        parent = db.query(Account).filter(Account.id == update_dict["parent_id"]).first()
+        if not parent:
+            raise ValueError(f"Parent account with id {update_dict['parent_id']} does not exist.")
 
     for field, value in update_dict.items():
         setattr(account, field, value)
+
+    # Keep legacy column in sync
+    if "name" in update_dict:
+        account.account_name = update_dict["name"]
 
     db.commit()
     db.refresh(account)

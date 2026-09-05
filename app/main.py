@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.auth import router as auth_router
 from app.api.users import router as users_router
 from app.api.contacts import router as contacts_router
 from app.api.products import router as products_router
@@ -25,12 +26,20 @@ app.add_middleware(
 )
 
 
-app.include_router(users_router)
-app.include_router(contacts_router)
-app.include_router(products_router)
-app.include_router(accounts_router)
-app.include_router(journals_router)
-app.include_router(journal_entries_router)
+app.include_router(auth_router, prefix="/api/auth")
+app.include_router(auth_router, prefix="/auth", include_in_schema=False)
+app.include_router(users_router, prefix="/api/users")
+app.include_router(users_router, prefix="/users", include_in_schema=False)
+app.include_router(contacts_router, prefix="/api/contacts")
+app.include_router(contacts_router, prefix="/contacts", include_in_schema=False)
+app.include_router(products_router, prefix="/api/products")
+app.include_router(products_router, prefix="/products", include_in_schema=False)
+app.include_router(accounts_router, prefix="/api")
+app.include_router(accounts_router, prefix="", include_in_schema=False)
+app.include_router(journals_router, prefix="/api")
+app.include_router(journals_router, prefix="", include_in_schema=False)
+app.include_router(journal_entries_router, prefix="/api")
+app.include_router(journal_entries_router, prefix="", include_in_schema=False)
 
 
 @app.get("/")

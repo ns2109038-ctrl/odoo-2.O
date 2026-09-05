@@ -40,7 +40,7 @@ def create_journal_entry(db: Session, entry_data: JournalEntryCreate) -> Journal
             if not account:
                 raise ValueError(f"Item #{index}: Account with id {item.account_id} does not exist.")
             if not account.is_active:
-                raise ValueError(f"Item #{index}: Account '{account.account_name}' is inactive/archived and cannot be used.")
+                raise ValueError(f"Item #{index}: Account '{account.name}' is inactive/archived and cannot be used.")
             account_cache[item.account_id] = account
 
         total_debit += item.debit
