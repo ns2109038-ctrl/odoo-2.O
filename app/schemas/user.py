@@ -1,32 +1,38 @@
-import uuid
-from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, Field
+from typing import Literal
 
 
-class UserBase(BaseModel):
+class UserCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+
+    login_id: str = Field(min_length=6, max_length=12)
+
+    email: EmailStr
+
+    role: Literal["admin", "accountant", "contact"]
+
+    password: str = Field(min_length=8)
+
+    confirm_password: str
+
+
+class UserResponse(BaseModel):
+    id: int
     name: str
     login_id: str
     email: EmailStr
-    role: str = "user"
-    is_active: bool = True
+    role: str
+    is_active: bool
+
+    class Config:
+        from_attributes = True
 
 
-class UserCreate(UserBase):
+class LoginRequest(BaseModel):
+    login_id: str
     password: str
 
 
-class UserUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    role: Optional[str] = None
-    is_active: Optional[bool] = None
-    password: Optional[str] = None
-
-
-class UserResponse(UserBase):
-    id: uuid.UUID
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str

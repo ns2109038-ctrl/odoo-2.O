@@ -6,12 +6,14 @@ export const createRateLimiter = (max: number, windowMinutes: number) => {
   return rateLimit({
     windowMs: windowMinutes * 60 * 1000,
     max, // Limit each IP to `max` requests per `window`
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-    store: new RedisStore({
-      // @ts-expect-error - Known issue with rate-limit-redis type definitions for ioredis
-      sendCommand: (...args: string[]) => redis.call(...args),
-    }),
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: (redis.status === "ready" || redis.status === "connect")
+      ? new RedisStore({
+          // @ts-expect-error - Known issue with rate-limit-redis type definitions for ioredis
+          sendCommand: (...args: string[]) => redis.call(...args),
+        })
+      : undefined, // Falls back to default memory store when Redis is offline
     message: {
       status: "error",
       message: "Too many requests from this IP, please try again later.",
