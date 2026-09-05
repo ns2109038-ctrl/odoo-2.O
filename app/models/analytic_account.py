@@ -1,22 +1,16 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
 from sqlalchemy.sql import func
 from app.db.database import Base
 
 
-class Account(Base):
-    __tablename__ = "accounts"
+class AnalyticAccount(Base):
+    __tablename__ = "analytic_accounts"
 
     id = Column(Integer, primary_key=True, index=True)
     code = Column(String(50), unique=True, nullable=False, index=True)
     name = Column(String(150), nullable=False, index=True)
-    account_name = Column(String(150), nullable=True)  # legacy compatibility
-    account_type = Column(String(50), nullable=False, index=True)  # asset, liability, equity, income, expense
-    parent_id = Column(Integer, ForeignKey("accounts.id", ondelete="RESTRICT"), nullable=True, index=True)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-
-    parent = relationship("Account", remote_side=[id], backref=backref("children", lazy="select"), foreign_keys=[parent_id])

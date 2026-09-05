@@ -5,6 +5,10 @@ from app.db.database import SessionLocal
 from app.models.journal_entry import JournalEntry, JournalItem
 from app.models.journal import Journal
 from app.models.account import Account
+from app.models.user import User
+from app.services.user_service import create_user
+from app.schemas.user import UserCreate
+import uuid
 
 client = TestClient(app)
 
@@ -14,6 +18,29 @@ paths = openapi.get("paths", {})
 assert "/journal-entries/" in paths, "Missing /journal-entries/ endpoint"
 assert "/journal-entries/{entry_id}" in paths, "Missing /journal-entries/{entry_id} endpoint"
 print("Verified endpoints exist: POST /journal-entries/, GET /journal-entries/, GET /journal-entries/{entry_id}")
+
+# ── Auth setup ────────────────────────────────────────────────────────────────
+_suffix = uuid.uuid4().hex[:6]
+_pw = "JETest123!"
+_db = SessionLocal()
+_test_user = create_user(
+    _db,
+    UserCreate(
+        name="JE Test Accountant",
+        login_id=f"je_{_suffix}",
+        email=f"je_{_suffix}@urbanfurniture.com",
+        password=_pw,
+        confirm_password=_pw,
+        role="accountant",
+    ),
+)
+_db.close()
+
+_login_res = client.post("/api/auth/login", json={"login_id": f"je_{_suffix}", "password": _pw})
+assert _login_res.status_code == 200, f"Auth login failed: {_login_res.text}"
+_token = _login_res.json()["access_token"]
+_auth_headers = {"Authorization": f"Bearer {_token}"}
+# ─────────────────────────────────────────────────────────────────────────────
 
 db = SessionLocal()
 sales_journal = db.query(Journal).filter(Journal.journal_name == "Sales Journal").first()
@@ -50,7 +77,7 @@ valid_payload = {
     ]
 }
 
-res_valid = client.post("/journal-entries/", json=valid_payload)
+res_valid = client.post("/journal-entries/", json=valid_payload, headers=_auth_headers)
 assert res_valid.status_code == 201, f"Expected 201, got {res_valid.status_code}: {res_valid.text}"
 entry_data = res_valid.json()
 created_entry_id = entry_data["id"]
@@ -78,7 +105,7 @@ unbalanced_payload = {
     ]
 }
 
-res_unbalanced = client.post("/journal-entries/", json=unbalanced_payload)
+res_unbalanced = client.post("/journal-entries/", json=unbalanced_payload, headers=_auth_headers)
 assert res_unbalanced.status_code == 400, f"Expected 400, got {res_unbalanced.status_code}: {res_unbalanced.text}"
 assert "Journal entry is not balanced. Total debit must equal total credit." in res_unbalanced.json()["detail"]
 print("Unbalanced entry rejected with HTTP 400:", res_unbalanced.json()["detail"])
@@ -99,7 +126,7 @@ res_bad_journal = client.post("/journal-entries/", json={
         {"account_id": receivable_id, "debit": 1000, "credit": 0},
         {"account_id": income_id, "debit": 0, "credit": 1000}
     ]
-})
+}, headers=_auth_headers)
 assert res_bad_journal.status_code == 400
 print("Non-existent journal rejected:", res_bad_journal.json()["detail"])
 
@@ -128,7 +155,7 @@ res_inactive_j = client.post("/journal-entries/", json={
         {"account_id": receivable_id, "debit": 1000, "credit": 0},
         {"account_id": income_id, "debit": 0, "credit": 1000}
     ]
-})
+}, headers=_auth_headers)
 assert res_inactive_j.status_code == 400
 print("Inactive journal rejected:", res_inactive_j.json()["detail"])
 
@@ -140,7 +167,7 @@ res_bad_acc = client.post("/journal-entries/", json={
         {"account_id": 99999, "debit": 1000, "credit": 0},
         {"account_id": income_id, "debit": 0, "credit": 1000}
     ]
-})
+}, headers=_auth_headers)
 assert res_bad_acc.status_code == 400
 print("Non-existent account rejected:", res_bad_acc.json()["detail"])
 
@@ -162,7 +189,7 @@ res_inactive_acc = client.post("/journal-entries/", json={
         {"account_id": inactive_acc.id, "debit": 1000, "credit": 0},
         {"account_id": income_id, "debit": 0, "credit": 1000}
     ]
-})
+}, headers=_auth_headers)
 assert res_inactive_acc.status_code == 400
 print("Inactive account rejected:", res_inactive_acc.json()["detail"])
 
@@ -174,7 +201,7 @@ res_neg = client.post("/journal-entries/", json={
         {"account_id": receivable_id, "debit": -500, "credit": 0},
         {"account_id": income_id, "debit": 0, "credit": 500}
     ]
-})
+}, headers=_auth_headers)
 assert res_neg.status_code == 422
 print("Negative amount rejected with HTTP 422.")
 
@@ -186,7 +213,7 @@ res_both = client.post("/journal-entries/", json={
         {"account_id": receivable_id, "debit": 500, "credit": 500},
         {"account_id": income_id, "debit": 0, "credit": 500}
     ]
-})
+}, headers=_auth_headers)
 assert res_both.status_code == 422
 print("Both debit and credit > 0 rejected with HTTP 422.")
 
@@ -198,7 +225,7 @@ res_zeros = client.post("/journal-entries/", json={
         {"account_id": receivable_id, "debit": 0, "credit": 0},
         {"account_id": income_id, "debit": 0, "credit": 500}
     ]
-})
+}, headers=_auth_headers)
 assert res_zeros.status_code == 422
 print("Both debit and credit == 0 rejected with HTTP 422.")
 
@@ -209,7 +236,7 @@ res_one_item = client.post("/journal-entries/", json={
     "items": [
         {"account_id": receivable_id, "debit": 500, "credit": 0}
     ]
-})
+}, headers=_auth_headers)
 assert res_one_item.status_code == 422
 print("Single item rejected (minimum 2 items required) with HTTP 422.")
 
@@ -225,21 +252,21 @@ compound_payload = {
         {"account_id": income_id, "debit": 0, "credit": 25000}
     ]
 }
-res_compound = client.post("/journal-entries/", json=compound_payload)
+res_compound = client.post("/journal-entries/", json=compound_payload, headers=_auth_headers)
 assert res_compound.status_code == 201
 comp_data = res_compound.json()
 assert len(comp_data["items"]) == 3
 print(f"Created compound entry #{comp_data['id']} with {len(comp_data['items'])} lines (Debits 10k + 15k = Credit 25k).")
 
 print("\n=== 14. Testing GET All Journal Entries ===")
-res_get_all = client.get("/journal-entries/")
+res_get_all = client.get("/journal-entries/", headers=_auth_headers)
 assert res_get_all.status_code == 200
 all_entries = res_get_all.json()
 print(f"Total entries retrieved: {len(all_entries)}")
 assert len(all_entries) >= 2
 
 print("\n=== 15. Testing GET One Journal Entry ===")
-res_get_one = client.get(f"/journal-entries/{created_entry_id}")
+res_get_one = client.get(f"/journal-entries/{created_entry_id}", headers=_auth_headers)
 assert res_get_one.status_code == 200
 one_entry = res_get_one.json()
 print(f"Retrieved Entry #{one_entry['id']}: Reference={one_entry['reference']}, Date={one_entry['date']}")

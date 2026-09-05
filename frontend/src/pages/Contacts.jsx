@@ -1,47 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getContacts, createContact, deleteContact as deleteContactApi } from "../lib/api.js";
+import Alert from "../components/ui/Alert.jsx";
 
 function Contacts() {
-  const [contacts, setContacts] = useState([
-    {
-      id: 1,
-      name: "ABC Furniture",
-      type: "Customer",
-      email: "abc@example.com",
-      phone: "+91 98765 43210",
-      city: "Ahmedabad",
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "Wood Suppliers Ltd.",
-      type: "Vendor",
-      email: "wood@example.com",
-      phone: "+91 98250 12345",
-      city: "Surat",
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "Modern Interiors",
-      type: "Customer",
-      email: "modern@example.com",
-      phone: "+91 99123 45678",
-      city: "Mumbai",
-      status: "Active",
-    },
-    {
-      id: 4,
-      name: "Steel & Hardware",
-      type: "Vendor",
-      email: "steel@example.com",
-      phone: "+91 98980 56789",
-      city: "Vadodara",
-      status: "Inactive",
-    },
-  ]);
-
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -51,6 +18,32 @@ function Contacts() {
     city: "",
     status: "Active",
   });
+
+  const loadContacts = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await getContacts();
+      const mapped = (data || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        type: c.contact_type ? c.contact_type.charAt(0).toUpperCase() + c.contact_type.slice(1) : "Customer",
+        email: c.email || "-",
+        phone: c.phone || "-",
+        city: c.city || "-",
+        status: c.is_active ? "Active" : "Inactive",
+      }));
+      setContacts(mapped);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadContacts();
+  }, []);
 
   const filteredContacts = contacts.filter((contact) =>
     contact.name.toLowerCase().includes(search.toLowerCase())
@@ -63,7 +56,7 @@ function Contacts() {
     });
   };
 
-  const addContact = (e) => {
+  const addContact = async (e) => {
     e.preventDefault();
 
     if (!form.name.trim()) {
@@ -71,27 +64,45 @@ function Contacts() {
       return;
     }
 
-    const newContact = {
-      id: Date.now(),
-      ...form,
-    };
+    setSubmitting(true);
+    try {
+      await createContact({
+        name: form.name.trim(),
+        contact_type: form.type.toLowerCase(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        city: form.city.trim() || null,
+        is_active: form.status === "Active",
+      });
 
-    setContacts([...contacts, newContact]);
+      setForm({
+        name: "",
+        type: "Customer",
+        email: "",
+        phone: "",
+        city: "",
+        status: "Active",
+      });
 
-    setForm({
-      name: "",
-      type: "Customer",
-      email: "",
-      phone: "",
-      city: "",
-      status: "Active",
-    });
-
-    setShowForm(false);
+      setShowForm(false);
+      await loadContacts();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const deleteContact = (id) => {
-    setContacts(contacts.filter((contact) => contact.id !== id));
+  const deleteContact = async (id) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this contact?");
+    if (!confirmDelete) return;
+
+    try {
+      await deleteContactApi(id);
+      setContacts(contacts.filter((contact) => contact.id !== id));
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
@@ -109,6 +120,8 @@ function Contacts() {
           + Add Contact
         </button>
       </div>
+
+      {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
       <div className="module-toolbar">
         <input
@@ -139,7 +152,13 @@ function Contacts() {
             </thead>
 
             <tbody>
-              {filteredContacts.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="7" className="empty-state">
+                    Loading contacts...
+                  </td>
+                </tr>
+              ) : filteredContacts.length > 0 ? (
                 filteredContacts.map((contact) => (
                   <tr key={contact.id}>
                     <td>
@@ -221,6 +240,7 @@ function Contacts() {
                     value={form.name}
                     onChange={handleChange}
                     placeholder="Enter contact name"
+                    required
                   />
                 </div>
 
@@ -285,12 +305,13 @@ function Contacts() {
                   type="button"
                   className="secondary-btn"
                   onClick={() => setShowForm(false)}
+                  disabled={submitting}
                 >
                   Cancel
                 </button>
 
-                <button type="submit" className="primary-btn">
-                  Save Contact
+                <button type="submit" className="primary-btn" disabled={submitting}>
+                  {submitting ? "Saving..." : "Save Contact"}
                 </button>
               </div>
             </form>

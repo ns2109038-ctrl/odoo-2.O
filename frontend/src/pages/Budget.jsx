@@ -1,56 +1,60 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getBudgets, getAccounts, getAnalyticAccounts, createBudget, activateBudget, closeBudget, deleteBudget as deleteBudgetApi } from "../lib/api.js";
+import Alert from "../components/ui/Alert.jsx";
 
 function Budget() {
-  const [budgets, setBudgets] = useState([
-    {
-      id: 1,
-      name: "FY 2026-27 Sales Budget",
-      period: "2026-27",
-      department: "Sales",
-      amount: 500000,
-      revisedAmount: 550000,
-      status: "Active",
-    },
-    {
-      id: 2,
-      name: "FY 2026-27 Purchase Budget",
-      period: "2026-27",
-      department: "Purchase",
-      amount: 300000,
-      revisedAmount: 320000,
-      status: "Active",
-    },
-    {
-      id: 3,
-      name: "Administrative Expenses",
-      period: "2026-27",
-      department: "Administration",
-      amount: 150000,
-      revisedAmount: 145000,
-      status: "Draft",
-    },
-    {
-      id: 4,
-      name: "Marketing Budget",
-      period: "2026-27",
-      department: "Marketing",
-      amount: 100000,
-      revisedAmount: 120000,
-      status: "Active",
-    },
-  ]);
-
+  const [budgets, setBudgets] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [analytics, setAnalytics] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
     period: "2026-27",
     department: "Sales",
+    account_id: "",
+    analytic_account_id: "",
     amount: "",
-    revisedAmount: "",
     status: "Draft",
   });
+
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [bData, aData, anData] = await Promise.all([
+        getBudgets(),
+        getAccounts(),
+        getAnalyticAccounts(),
+      ]);
+
+      const mapped = (bData || []).map((b) => ({
+        id: b.id,
+        name: b.name,
+        period: `${b.start_date || "2026"} to ${b.end_date || "2027"}`,
+        department: b.analytic_account?.name || "General",
+        amount: Number(b.planned || b.total_amount || 0),
+        revisedAmount: Number(b.actual || 0),
+        status: b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "Draft",
+      }));
+
+      setBudgets(mapped);
+      setAccounts(aData || []);
+      setAnalytics(anData?.data || anData || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const filteredBudgets = budgets.filter(
     (budget) =>
@@ -85,13 +89,14 @@ function Budget() {
       name: "",
       period: "2026-27",
       department: "Sales",
+      account_id: accounts[0]?.id ? String(accounts[0].id) : "",
+      analytic_account_id: "",
       amount: "",
-      revisedAmount: "",
       status: "Draft",
     });
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
 
     if (!form.name.trim()) {
@@ -100,46 +105,62 @@ function Budget() {
     }
 
     if (!form.amount || Number(form.amount) <= 0) {
-      alert("Please enter a valid original budget amount.");
+      alert("Please enter a valid planned budget amount.");
       return;
     }
 
-    if (
-      form.revisedAmount === "" ||
-      Number(form.revisedAmount) < 0
-    ) {
-      alert("Please enter a valid revised budget amount.");
+    const accountId = form.account_id ? Number(form.account_id) : accounts[0]?.id;
+    if (!accountId) {
+      alert("Please select or create an account first.");
       return;
     }
 
-    const newBudget = {
-      id: Date.now(),
-      name: form.name,
-      period: form.period,
-      department: form.department,
-      amount: Number(form.amount),
-      revisedAmount: Number(form.revisedAmount),
-      status: form.status,
-    };
+    setSubmitting(true);
+    try {
+      const budgetRes = await createBudget({
+        name: form.name.trim(),
+        analytic_account_id: form.analytic_account_id ? Number(form.analytic_account_id) : null,
+        start_date: "2026-04-01",
+        end_date: "2027-03-31",
+        lines: [
+          {
+            account_id: accountId,
+            planned_amount: Number(form.amount),
+            period: form.period,
+          },
+        ],
+      });
 
-    setBudgets([newBudget, ...budgets]);
+      if (form.status === "Active" && budgetRes?.id) {
+        await activateBudget(budgetRes.id);
+      }
 
-    resetForm();
-    setShowForm(false);
+      resetForm();
+      setShowForm(false);
+      await loadData();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const deleteBudget = (id) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this budget?"
-    );
-
-    if (!confirmDelete) {
-      return;
+  const handleActivate = async (id) => {
+    try {
+      await activateBudget(id);
+      await loadData();
+    } catch (err) {
+      alert(err.message);
     }
+  };
 
-    setBudgets(
-      budgets.filter((budget) => budget.id !== id)
-    );
+  const handleClose = async (id) => {
+    try {
+      await closeBudget(id);
+      await loadData();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
@@ -147,57 +168,46 @@ function Budget() {
       <div className="page-header">
         <div>
           <h1>Budget</h1>
-          <p>
-            Create, manage and monitor original and revised budgets.
-          </p>
+          <p>Create, manage and monitor original and revised budgets.</p>
         </div>
 
         <button
           className="primary-btn"
-          onClick={() => setShowForm(true)}
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
         >
           + Create Budget
         </button>
       </div>
 
-      {/* SUMMARY CARDS */}
+      {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
+      {/* SUMMARY CARDS */}
       <div className="account-summary">
         <div className="account-summary-card">
           <div>
             <span>Total Budgets</span>
             <strong>{budgets.length}</strong>
           </div>
-
-          <div className="account-summary-icon">
-            $
-          </div>
+          <div className="account-summary-icon">₹</div>
         </div>
 
         <div className="account-summary-card">
           <div>
-            <span>Original Budget</span>
-            <strong>
-              ₹{totalOriginal.toLocaleString("en-IN")}
-            </strong>
+            <span>Planned Budget</span>
+            <strong>₹{totalOriginal.toLocaleString("en-IN")}</strong>
           </div>
-
-          <div className="account-summary-icon">
-            O
-          </div>
+          <div className="account-summary-icon">P</div>
         </div>
 
         <div className="account-summary-card">
           <div>
-            <span>Revised Budget</span>
-            <strong>
-              ₹{totalRevised.toLocaleString("en-IN")}
-            </strong>
+            <span>Actual Spend</span>
+            <strong>₹{totalRevised.toLocaleString("en-IN")}</strong>
           </div>
-
-          <div className="account-summary-icon">
-            R
-          </div>
+          <div className="account-summary-icon">A</div>
         </div>
 
         <div className="account-summary-card">
@@ -205,15 +215,11 @@ function Budget() {
             <span>Active Budgets</span>
             <strong>{activeBudgets}</strong>
           </div>
-
-          <div className="account-summary-icon">
-            ✓
-          </div>
+          <div className="account-summary-icon">✓</div>
         </div>
       </div>
 
       {/* TOOLBAR */}
-
       <div className="module-toolbar">
         <input
           type="text"
@@ -223,13 +229,11 @@ function Budget() {
         />
 
         <div className="contact-count">
-          Total Budgets:{" "}
-          <strong>{filteredBudgets.length}</strong>
+          Total Budgets: <strong>{filteredBudgets.length}</strong>
         </div>
       </div>
 
       {/* TABLE */}
-
       <div className="module-card">
         <div className="table-wrapper">
           <table className="data-table">
@@ -237,101 +241,59 @@ function Budget() {
               <tr>
                 <th>Budget Name</th>
                 <th>Period</th>
-                <th>Department</th>
-                <th>Original Budget</th>
-                <th>Revised Budget</th>
-                <th>Difference</th>
+                <th>Department / Analytic</th>
+                <th>Planned Budget</th>
+                <th>Actual Spend</th>
+                <th>Variance</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredBudgets.length > 0 ? (
+              {loading ? (
+                <tr><td colSpan="8" className="empty-state">Loading budgets...</td></tr>
+              ) : filteredBudgets.length > 0 ? (
                 filteredBudgets.map((budget) => {
-                  const difference =
-                    budget.revisedAmount - budget.amount;
+                  const difference = budget.amount - budget.revisedAmount;
 
                   return (
                     <tr key={budget.id}>
-                      <td>
-                        <strong>{budget.name}</strong>
-                      </td>
-
+                      <td><strong>{budget.name}</strong></td>
                       <td>{budget.period}</td>
-
                       <td>
-                        <span className="badge blue">
-                          {budget.department}
+                        <span className="badge blue">{budget.department}</span>
+                      </td>
+                      <td>₹{budget.amount.toLocaleString("en-IN")}</td>
+                      <td>₹{budget.revisedAmount.toLocaleString("en-IN")}</td>
+                      <td>
+                        <span className={difference >= 0 ? "budget-positive" : "budget-negative"}>
+                          {difference >= 0 ? "+" : ""}₹{difference.toLocaleString("en-IN")}
                         </span>
                       </td>
-
                       <td>
-                        ₹
-                        {budget.amount.toLocaleString(
-                          "en-IN"
-                        )}
-                      </td>
-
-                      <td>
-                        ₹
-                        {budget.revisedAmount.toLocaleString(
-                          "en-IN"
-                        )}
-                      </td>
-
-                      <td>
-                        <span
-                          className={
-                            difference > 0
-                              ? "budget-positive"
-                              : difference < 0
-                              ? "budget-negative"
-                              : "budget-neutral"
-                          }
-                        >
-                          {difference > 0 ? "+" : ""}
-                          ₹
-                          {difference.toLocaleString(
-                            "en-IN"
-                          )}
-                        </span>
-                      </td>
-
-                      <td>
-                        <span
-                          className={
-                            budget.status === "Active"
-                              ? "badge green"
-                              : "badge orange"
-                          }
-                        >
+                        <span className={budget.status === "Active" ? "badge green" : "badge orange"}>
                           {budget.status}
                         </span>
                       </td>
-
                       <td>
-                        <button
-                          className="delete-btn"
-                          onClick={() =>
-                            deleteBudget(budget.id)
-                          }
-                        >
-                          Delete
-                        </button>
+                        {budget.status === "Draft" ? (
+                          <button className="small-btn" onClick={() => handleActivate(budget.id)}>
+                            Activate
+                          </button>
+                        ) : budget.status === "Active" ? (
+                          <button className="delete-btn" onClick={() => handleClose(budget.id)}>
+                            Close
+                          </button>
+                        ) : (
+                          "-"
+                        )}
                       </td>
                     </tr>
                   );
                 })
               ) : (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="empty-state"
-                  >
-                    No budgets found.
-                  </td>
-                </tr>
+                <tr><td colSpan="8" className="empty-state">No budgets found.</td></tr>
               )}
             </tbody>
           </table>
@@ -339,22 +301,13 @@ function Budget() {
       </div>
 
       {/* CREATE BUDGET MODAL */}
-
       {showForm && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowForm(false)}
-        >
-          <div
-            className="modal-box"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
                 <h2>Create Budget</h2>
-                <p>
-                  Add original and revised budget details.
-                </p>
+                <p>Add planned budget details.</p>
               </div>
 
               <button
@@ -371,147 +324,86 @@ function Budget() {
             <form onSubmit={handleSave}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Budget Name</label>
-
+                  <label>Budget Name *</label>
                   <input
                     type="text"
                     name="name"
                     value={form.name}
                     onChange={handleChange}
                     placeholder="Example: FY 2026-27 Sales Budget"
+                    required
                   />
                 </div>
 
                 <div className="form-group">
                   <label>Budget Period</label>
-
                   <select
                     name="period"
                     value={form.period}
                     onChange={handleChange}
                   >
-                    <option value="2026-27">
-                      2026-27
-                    </option>
-
-                    <option value="2027-28">
-                      2027-28
-                    </option>
-
-                    <option value="2028-29">
-                      2028-29
-                    </option>
+                    <option value="2026-27">2026-27</option>
+                    <option value="2027-28">2027-28</option>
+                    <option value="2028-29">2028-29</option>
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Department</label>
-
+                  <label>Analytic Account / Department</label>
                   <select
-                    name="department"
-                    value={form.department}
+                    name="analytic_account_id"
+                    value={form.analytic_account_id}
                     onChange={handleChange}
                   >
-                    <option value="Sales">
-                      Sales
-                    </option>
-
-                    <option value="Purchase">
-                      Purchase
-                    </option>
-
-                    <option value="Administration">
-                      Administration
-                    </option>
-
-                    <option value="Marketing">
-                      Marketing
-                    </option>
-
-                    <option value="Finance">
-                      Finance
-                    </option>
+                    <option value="">— Select Analytic Account —</option>
+                    {analytics.map((an) => (
+                      <option key={an.id} value={an.id}>
+                        {an.name} ({an.code})
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Status</label>
+                  <label>Account *</label>
+                  <select
+                    name="account_id"
+                    value={form.account_id}
+                    onChange={handleChange}
+                    required
+                  >
+                    <option value="">Select Expense / Income Account</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.code} - {a.name || a.account_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
+                <div className="form-group">
+                  <label>Planned Budget Amount (₹) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    name="amount"
+                    value={form.amount}
+                    onChange={handleChange}
+                    placeholder="Enter planned amount"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Initial Status</label>
                   <select
                     name="status"
                     value={form.status}
                     onChange={handleChange}
                   >
-                    <option value="Draft">
-                      Draft
-                    </option>
-
-                    <option value="Active">
-                      Active
-                    </option>
+                    <option value="Draft">Draft</option>
+                    <option value="Active">Active</option>
                   </select>
-                </div>
-
-                <div className="form-group">
-                  <label>Original Budget</label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    name="amount"
-                    value={form.amount}
-                    onChange={handleChange}
-                    placeholder="Enter original amount"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Revised Budget</label>
-
-                  <input
-                    type="number"
-                    min="0"
-                    name="revisedAmount"
-                    value={form.revisedAmount}
-                    onChange={handleChange}
-                    placeholder="Enter revised amount"
-                  />
-                </div>
-              </div>
-
-              <div className="budget-preview">
-                <div>
-                  <span>Original Budget</span>
-
-                  <strong>
-                    ₹
-                    {Number(
-                      form.amount || 0
-                    ).toLocaleString("en-IN")}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Revised Budget</span>
-
-                  <strong>
-                    ₹
-                    {Number(
-                      form.revisedAmount || 0
-                    ).toLocaleString("en-IN")}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Difference</span>
-
-                  <strong>
-                    ₹
-                    {(
-                      Number(form.revisedAmount || 0) -
-                      Number(form.amount || 0)
-                    ).toLocaleString("en-IN")}
-                  </strong>
                 </div>
               </div>
 
@@ -523,15 +415,13 @@ function Budget() {
                     resetForm();
                     setShowForm(false);
                   }}
+                  disabled={submitting}
                 >
                   Cancel
                 </button>
 
-                <button
-                  type="submit"
-                  className="primary-btn"
-                >
-                  Save Budget
+                <button type="submit" className="primary-btn" disabled={submitting}>
+                  {submitting ? "Saving..." : "Save Budget"}
                 </button>
               </div>
             </form>

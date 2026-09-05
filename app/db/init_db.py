@@ -5,6 +5,13 @@ from app.models.product import Product  # noqa: F401
 from app.models.account import Account  # noqa: F401
 from app.models.journal import Journal  # noqa: F401
 from app.models.journal_entry import JournalEntry, JournalItem  # noqa: F401
+from app.models.invoice import Invoice, InvoiceLine  # noqa: F401
+from app.models.payment import Payment  # noqa: F401
+from app.models.sales_order import SalesOrder, SalesOrderLine  # noqa: F401
+from app.models.purchase_order import PurchaseOrder, PurchaseOrderLine  # noqa: F401
+from app.models.analytic_account import AnalyticAccount  # noqa: F401
+from app.models.budget import Budget, BudgetLine  # noqa: F401
+
 
 
 def init_db():

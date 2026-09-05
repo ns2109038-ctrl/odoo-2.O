@@ -1,53 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getProducts, createProduct, updateProduct, deleteProduct as deleteProductApi } from "../lib/api.js";
+import Alert from "../components/ui/Alert.jsx";
 
 function Products() {
   const [view, setView] = useState("list");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [editIndex, setEditIndex] = useState(null);
-
-  const [products, setProducts] = useState([
-    {
-      name: "Office Chair",
-      code: "PRD-001",
-      category: "Furniture",
-      type: "Goods",
-      salesPrice: 4500,
-      purchasePrice: 3000,
-      stock: 25,
-      status: "Active",
-    },
-    {
-      name: "Wooden Table",
-      code: "PRD-002",
-      category: "Furniture",
-      type: "Goods",
-      salesPrice: 8500,
-      purchasePrice: 6000,
-      stock: 15,
-      status: "Active",
-    },
-    {
-      name: "Sofa Set",
-      code: "PRD-003",
-      category: "Furniture",
-      type: "Goods",
-      salesPrice: 25000,
-      purchasePrice: 18000,
-      stock: 8,
-      status: "Active",
-    },
-    {
-      name: "LED Lamp",
-      code: "PRD-004",
-      category: "Lighting",
-      type: "Goods",
-      salesPrice: 1800,
-      purchasePrice: 1100,
-      stock: 40,
-      status: "Active",
-    },
-  ]);
+  const [editProductObj, setEditProductObj] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -60,6 +23,34 @@ function Products() {
     status: "Active",
   });
 
+  const loadProducts = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await getProducts();
+      const mapped = (data || []).map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.sku || "",
+        category: p.category || "Furniture",
+        type: p.unit === "Service" ? "Service" : "Goods",
+        salesPrice: Number(p.sale_price || 0),
+        purchasePrice: Number(p.purchase_price || 0),
+        stock: 0,
+        status: p.is_active ? "Active" : "Inactive",
+      }));
+      setProducts(mapped);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
   const filteredProducts = products.filter((product) =>
     `${product.name} ${product.code} ${product.category}`
       .toLowerCase()
@@ -67,8 +58,7 @@ function Products() {
   );
 
   const openAddModal = () => {
-    setEditIndex(null);
-
+    setEditProductObj(null);
     setForm({
       name: "",
       code: "",
@@ -79,15 +69,21 @@ function Products() {
       stock: "",
       status: "Active",
     });
-
     setShowModal(true);
   };
 
-  const openEditModal = (index) => {
-    const product = products[index];
-
-    setEditIndex(index);
-    setForm(product);
+  const openEditModal = (product) => {
+    setEditProductObj(product);
+    setForm({
+      name: product.name,
+      code: product.code,
+      category: product.category,
+      type: product.type,
+      salesPrice: product.salesPrice,
+      purchasePrice: product.purchasePrice,
+      stock: product.stock,
+      status: product.status,
+    });
     setShowModal(true);
   };
 
@@ -98,70 +94,72 @@ function Products() {
     });
   };
 
-  const saveProduct = (e) => {
+  const saveProduct = async (e) => {
     e.preventDefault();
 
-    if (!form.name || !form.code) {
+    if (!form.name.trim() || !form.code.trim()) {
       alert("Please enter Product Name and Product Code");
       return;
     }
 
-    const newProduct = {
-      ...form,
-      salesPrice: Number(form.salesPrice) || 0,
-      purchasePrice: Number(form.purchasePrice) || 0,
-      stock: Number(form.stock) || 0,
-    };
+    setSubmitting(true);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        sku: form.code.trim(),
+        category: form.category,
+        unit: form.type === "Service" ? "Service" : "Unit",
+        sale_price: form.salesPrice ? Number(form.salesPrice) : 0,
+        purchase_price: form.purchasePrice ? Number(form.purchasePrice) : 0,
+        is_active: form.status === "Active",
+      };
 
-    if (editIndex === null) {
-      setProducts([...products, newProduct]);
-    } else {
-      const updatedProducts = [...products];
-      updatedProducts[editIndex] = newProduct;
-      setProducts(updatedProducts);
+      if (!editProductObj) {
+        await createProduct(payload);
+      } else {
+        await updateProduct(editProductObj.id, payload);
+      }
+
+      setShowModal(false);
+      await loadProducts();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
     }
-
-    setShowModal(false);
   };
 
-  const deleteProduct = (index) => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete this product?"
-    );
-
+  const deleteProduct = async (id) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this product?");
     if (!confirmDelete) return;
 
-    setProducts(products.filter((_, i) => i !== index));
+    try {
+      await deleteProductApi(id);
+      setProducts(products.filter((p) => p.id !== id));
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
     <div className="product-page">
-
       {/* HEADER */}
       <div className="page-header">
         <div>
-          <p className="breadcrumb">
-            Home / Products
-          </p>
-
+          <p className="breadcrumb">Home / Products</p>
           <h1>Products</h1>
-
-          <p className="subtitle">
-            Manage your products and inventory
-          </p>
+          <p className="subtitle">Manage your products and inventory</p>
         </div>
 
-        <button
-          className="primary-btn"
-          onClick={openAddModal}
-        >
+        <button className="primary-btn" onClick={openAddModal}>
           + New Product
         </button>
       </div>
 
+      {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
+
       {/* TOOLBAR */}
       <div className="product-toolbar">
-
         <input
           type="text"
           placeholder="Search product, code or category..."
@@ -170,7 +168,6 @@ function Products() {
         />
 
         <div className="product-view-buttons">
-
           <button
             className={view === "list" ? "view-active" : ""}
             onClick={() => setView("list")}
@@ -184,14 +181,12 @@ function Products() {
           >
             ▦ Kanban
           </button>
-
         </div>
       </div>
 
       {/* LIST VIEW */}
       {view === "list" && (
         <div className="table-card">
-
           <div className="table-top">
             <div>
               <strong>Product List</strong>
@@ -203,9 +198,7 @@ function Products() {
           </div>
 
           <div className="responsive-table">
-
             <table>
-
               <thead>
                 <tr>
                   <th>Product</th>
@@ -221,138 +214,115 @@ function Products() {
               </thead>
 
               <tbody>
-
-                {filteredProducts.map((product, index) => (
-
-                  <tr key={index}>
-
-                    <td>
-                      <div className="product-cell">
-
-                        <div className="product-icon">
-                          📦
-                        </div>
-
-                        <div>
-                          <b>{product.name}</b>
-
-                          <small>
-                            Product
-                          </small>
-                        </div>
-
-                      </div>
+                {loading ? (
+                  <tr>
+                    <td colSpan="9" className="empty-state">
+                      Loading products...
                     </td>
-
-                    <td>
-                      <span className="product-code">
-                        {product.code}
-                      </span>
-                    </td>
-
-                    <td>
-                      {product.category}
-                    </td>
-
-                    <td>
-                      {product.type}
-                    </td>
-
-                    <td>
-                      ₹{product.salesPrice.toLocaleString("en-IN")}
-                    </td>
-
-                    <td>
-                      ₹{product.purchasePrice.toLocaleString("en-IN")}
-                    </td>
-
-                    <td>
-                      <span
-                        className={
-                          product.stock <= 10
-                            ? "stock-low"
-                            : "stock-good"
-                        }
-                      >
-                        {product.stock}
-                      </span>
-                    </td>
-
-                    <td>
-                      <span className="product-status">
-                        {product.status}
-                      </span>
-                    </td>
-
-                    <td>
-
-                      <button
-                        className="small-btn"
-                        onClick={() =>
-                          openEditModal(index)
-                        }
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        className="delete-btn"
-                        onClick={() =>
-                          deleteProduct(index)
-                        }
-                      >
-                        Delete
-                      </button>
-
-                    </td>
-
                   </tr>
+                ) : filteredProducts.length > 0 ? (
+                  filteredProducts.map((product) => (
+                    <tr key={product.id}>
+                      <td>
+                        <div className="product-cell">
+                          <div className="product-icon">📦</div>
+                          <div>
+                            <b>{product.name}</b>
+                            <small>Product</small>
+                          </div>
+                        </div>
+                      </td>
 
-                ))}
+                      <td>
+                        <span className="product-code">{product.code}</span>
+                      </td>
 
+                      <td>{product.category}</td>
+
+                      <td>
+                        <span className="product-type">{product.type}</span>
+                      </td>
+
+                      <td>
+                        ₹{product.salesPrice.toLocaleString("en-IN")}
+                      </td>
+
+                      <td>
+                        ₹{product.purchasePrice.toLocaleString("en-IN")}
+                      </td>
+
+                      <td>{product.stock}</td>
+
+                      <td>
+                        <span
+                          className={
+                            product.status === "Active"
+                              ? "status-active"
+                              : "status-inactive"
+                          }
+                        >
+                          {product.status}
+                        </span>
+                      </td>
+
+                      <td>
+                        <button
+                          className="small-btn"
+                          onClick={() => openEditModal(product)}
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          className="delete-btn"
+                          onClick={() => deleteProduct(product.id)}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="9" className="empty-state">
+                      No products found
+                    </td>
+                  </tr>
+                )}
               </tbody>
-
             </table>
-
           </div>
-
         </div>
       )}
 
       {/* KANBAN VIEW */}
       {view === "kanban" && (
-
         <div className="product-kanban">
-
-          {filteredProducts.map((product, index) => (
-
-            <div
-              className="product-card"
-              key={index}
-            >
-
-              <div className="product-card-header">
-
-                <div className="big-product-icon">
-                  📦
-                </div>
-
-                <span className="product-status">
+          {loading ? (
+            <div className="empty-card" style={{ gridColumn: "1/-1" }}>
+              <p>Loading products...</p>
+            </div>
+          ) : filteredProducts.map((product) => (
+            <div className="product-card" key={product.id}>
+              <div className="product-card-top">
+                <span
+                  className={
+                    product.status === "Active"
+                      ? "status-active"
+                      : "status-inactive"
+                  }
+                >
                   {product.status}
                 </span>
 
+                <div className="product-card-icon">📦</div>
               </div>
 
-              <h3>
-                {product.name}
-              </h3>
+              <h3>{product.name}</h3>
 
-              <p className="product-card-code">
-                {product.code}
-              </p>
+              <p className="product-card-code">{product.code}</p>
 
               <div className="product-info">
-
                 <div>
                   <span>Category</span>
                   <strong>{product.category}</strong>
@@ -374,77 +344,47 @@ function Products() {
                   <span>Stock</span>
                   <strong>{product.stock}</strong>
                 </div>
-
               </div>
 
               <div className="product-card-actions">
-
                 <button
                   className="small-btn"
-                  onClick={() =>
-                    openEditModal(index)
-                  }
+                  onClick={() => openEditModal(product)}
                 >
                   Edit
                 </button>
 
                 <button
                   className="delete-btn"
-                  onClick={() =>
-                    deleteProduct(index)
-                  }
+                  onClick={() => deleteProduct(product.id)}
                 >
                   Delete
                 </button>
-
               </div>
-
             </div>
-
           ))}
-
         </div>
       )}
 
       {/* EMPTY */}
-      {filteredProducts.length === 0 && (
-
+      {!loading && filteredProducts.length === 0 && (
         <div className="empty-card">
-
-          <div className="empty-icon">
-            📦
-          </div>
-
-          <h2>
-            No Products Found
-          </h2>
-
-          <p>
-            Try another search or create a new product.
-          </p>
-
+          <div className="empty-icon">📦</div>
+          <h2>No Products Found</h2>
+          <p>Try another search or create a new product.</p>
         </div>
       )}
 
       {/* MODAL */}
       {showModal && (
-
         <div className="modal-overlay">
-
           <div className="product-modal">
-
             <div className="modal-header">
-
               <div>
                 <h2>
-                  {editIndex === null
-                    ? "Create Product"
-                    : "Edit Product"}
+                  {!editProductObj ? "Create Product" : "Edit Product"}
                 </h2>
-
-                <p>
-                  Enter product information
-                </p>
+                <p>Enter product information</p>
               </div>
 
               <button
@@ -453,55 +393,37 @@ function Products() {
               >
                 ×
               </button>
-
             </div>
 
             <form onSubmit={saveProduct}>
-
               <div className="form-section">
-
-                <h3>
-                  Basic Information
-                </h3>
+                <h3>Basic Information</h3>
 
                 <div className="form-grid">
-
                   <div className="form-group">
-
-                    <label>
-                      Product Name *
-                    </label>
-
+                    <label>Product Name *</label>
                     <input
                       name="name"
                       value={form.name}
                       onChange={handleChange}
                       placeholder="Enter product name"
+                      required
                     />
-
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Product Code *
-                    </label>
-
+                    <label>Product Code *</label>
                     <input
                       name="code"
                       value={form.code}
                       onChange={handleChange}
                       placeholder="PRD-001"
+                      required
                     />
-
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Category
-                    </label>
-
+                    <label>Category</label>
                     <select
                       name="category"
                       value={form.category}
@@ -513,15 +435,10 @@ function Products() {
                       <option>Hardware</option>
                       <option>Other</option>
                     </select>
-
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Product Type
-                    </label>
-
+                    <label>Product Type</label>
                     <select
                       name="type"
                       value={form.type}
@@ -530,75 +447,40 @@ function Products() {
                       <option>Goods</option>
                       <option>Service</option>
                     </select>
-
                   </div>
-
                 </div>
-
               </div>
 
               <div className="form-section">
-
-                <h3>
-                  Pricing & Inventory
-                </h3>
+                <h3>Pricing & Inventory</h3>
 
                 <div className="form-grid">
-
                   <div className="form-group">
-
-                    <label>
-                      Sales Price
-                    </label>
-
+                    <label>Sales Price</label>
                     <input
                       type="number"
                       name="salesPrice"
                       value={form.salesPrice}
                       onChange={handleChange}
                       placeholder="0"
+                      min="0"
                     />
-
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Purchase Price
-                    </label>
-
+                    <label>Purchase Price</label>
                     <input
                       type="number"
                       name="purchasePrice"
                       value={form.purchasePrice}
                       onChange={handleChange}
                       placeholder="0"
+                      min="0"
                     />
-
                   </div>
 
                   <div className="form-group">
-
-                    <label>
-                      Stock Quantity
-                    </label>
-
-                    <input
-                      type="number"
-                      name="stock"
-                      value={form.stock}
-                      onChange={handleChange}
-                      placeholder="0"
-                    />
-
-                  </div>
-
-                  <div className="form-group">
-
-                    <label>
-                      Status
-                    </label>
-
+                    <label>Status</label>
                     <select
                       name="status"
                       value={form.status}
@@ -607,41 +489,32 @@ function Products() {
                       <option>Active</option>
                       <option>Inactive</option>
                     </select>
-
                   </div>
-
                 </div>
-
               </div>
 
-              <div className="modal-footer">
-
+              <div className="modal-actions">
                 <button
                   type="button"
-                  className="cancel-btn"
+                  className="secondary-btn"
                   onClick={() => setShowModal(false)}
+                  disabled={submitting}
                 >
                   Cancel
                 </button>
 
-                <button
-                  type="submit"
-                  className="primary-btn"
-                >
-                  {editIndex === null
-                    ? "Create Product"
-                    : "Save Changes"}
+                <button type="submit" className="primary-btn" disabled={submitting}>
+                  {submitting
+                    ? "Saving..."
+                    : !editProductObj
+                    ? "Save Product"
+                    : "Update Product"}
                 </button>
-
               </div>
-
             </form>
-
           </div>
-
         </div>
       )}
-
     </div>
   );
 }

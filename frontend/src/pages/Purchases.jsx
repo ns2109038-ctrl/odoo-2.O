@@ -1,23 +1,16 @@
 import { useMemo, useState, useEffect } from "react";
 import {
-  Plus,
   Search,
   ShoppingCart,
   FileText,
   CreditCard,
-  Eye,
-  Pencil,
-  Trash2,
-  X,
   CheckCircle2,
   Clock3,
-  AlertCircle,
 } from "lucide-react";
 import {
-  getSalesOrders,
-  createSalesOrder,
-  confirmSalesOrder,
-  cancelSalesOrder,
+  getPurchaseOrders,
+  createPurchaseOrder,
+  confirmPurchaseOrder,
   getInvoices,
   createInvoice,
   postInvoice,
@@ -53,15 +46,15 @@ function statusClass(status) {
   return "badge inactive";
 }
 
-export default function Sales({ initialTab = "orders" } = {}) {
+export default function Purchases({ initialTab = "orders" } = {}) {
   const [activeTab, setActiveTab] = useState(initialTab);
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
   const [orders, setOrders] = useState([]);
-  const [invoices, setInvoices] = useState([]);
+  const [bills, setBills] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [customers, setCustomers] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [products, setProducts] = useState([]);
   const [journals, setJournals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,20 +64,17 @@ export default function Sales({ initialTab = "orders" } = {}) {
   const [search, setSearch] = useState("");
 
   const [showOrderModal, setShowOrderModal] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showBillModal, setShowBillModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
-
   const [orderForm, setOrderForm] = useState({
-    customer_id: "",
+    vendor_id: "",
     product_id: "",
     quantity: "1",
     unit_price: "",
   });
 
-  const [invoiceForm, setInvoiceForm] = useState({
+  const [billForm, setBillForm] = useState({
     contact_id: "",
     due_date: "",
     product_id: "",
@@ -103,32 +93,31 @@ export default function Sales({ initialTab = "orders" } = {}) {
     setLoading(true);
     setError("");
     try {
-      const [soRes, invRes, payRes, contactsData, prodsData, jData] = await Promise.all([
-        getSalesOrders(),
-        getInvoices({ invoice_type: "customer_invoice" }),
-        getPayments({ payment_type: "customer_receipt" }),
+      const [poRes, billRes, payRes, contactsData, prodsData, jData] = await Promise.all([
+        getPurchaseOrders(),
+        getInvoices({ invoice_type: "vendor_bill" }),
+        getPayments({ payment_type: "vendor_payment" }),
         getContacts(),
         getProducts(),
         getJournals(),
       ]);
 
       setOrders(
-        (soRes?.data || []).map((o) => ({
+        (poRes?.data || []).map((o) => ({
           id: o.id,
           orderNo: o.order_number,
-          customer: o.customer?.name || `Customer #${o.customer_id}`,
+          vendor: o.vendor?.name || `Vendor #${o.vendor_id}`,
           date: o.order_date,
           amount: Number(o.total || 0),
           status: o.status ? o.status.charAt(0).toUpperCase() + o.status.slice(1) : "Draft",
         }))
       );
 
-      setInvoices(
-        (invRes?.data || []).map((i) => ({
+      setBills(
+        (billRes?.data || []).map((i) => ({
           id: i.id,
-          invoiceNo: i.invoice_number,
-          customer: i.contact?.name || `Contact #${i.contact_id}`,
-          orderNo: "-",
+          billNo: i.invoice_number,
+          vendor: i.contact?.name || `Vendor #${i.contact_id}`,
           date: i.invoice_date,
           dueDate: i.due_date || "-",
           amount: Number(i.total || 0),
@@ -141,8 +130,8 @@ export default function Sales({ initialTab = "orders" } = {}) {
         (payRes?.data || []).map((p) => ({
           id: p.id,
           paymentNo: p.payment_number,
-          invoiceNo: p.reference || "-",
-          customer: p.contact?.name || `Customer #${p.contact_id}`,
+          billNo: p.reference || "-",
+          vendor: p.contact?.name || `Vendor #${p.contact_id}`,
           date: p.payment_date,
           method: p.journal?.journal_name || "Bank",
           amount: Number(p.amount || 0),
@@ -150,7 +139,10 @@ export default function Sales({ initialTab = "orders" } = {}) {
         }))
       );
 
-      setCustomers(contactsData || []);
+      const vendorList = (contactsData || []).filter(
+        (c) => c.contact_type?.toLowerCase() === "vendor" || !c.contact_type
+      );
+      setVendors(vendorList.length > 0 ? vendorList : contactsData || []);
       setProducts(prodsData || []);
       setJournals(jData || []);
     } catch (err) {
@@ -169,61 +161,60 @@ export default function Sales({ initialTab = "orders" } = {}) {
     return orders.filter(
       (item) =>
         item.orderNo?.toLowerCase().includes(query) ||
-        item.customer?.toLowerCase().includes(query) ||
+        item.vendor?.toLowerCase().includes(query) ||
         item.status?.toLowerCase().includes(query)
     );
   }, [orders, search]);
 
-  const filteredInvoices = useMemo(() => {
+  const filteredBills = useMemo(() => {
     const query = search.toLowerCase();
-    return invoices.filter(
+    return bills.filter(
       (item) =>
-        item.invoiceNo?.toLowerCase().includes(query) ||
-        item.customer?.toLowerCase().includes(query) ||
+        item.billNo?.toLowerCase().includes(query) ||
+        item.vendor?.toLowerCase().includes(query) ||
         item.status?.toLowerCase().includes(query)
     );
-  }, [invoices, search]);
+  }, [bills, search]);
 
   const filteredPayments = useMemo(() => {
     const query = search.toLowerCase();
     return payments.filter(
       (item) =>
         item.paymentNo?.toLowerCase().includes(query) ||
-        item.invoiceNo?.toLowerCase().includes(query) ||
-        item.customer?.toLowerCase().includes(query)
+        item.billNo?.toLowerCase().includes(query) ||
+        item.vendor?.toLowerCase().includes(query)
     );
   }, [payments, search]);
 
-  const totalSales = orders.reduce((sum, item) => sum + item.amount, 0);
-  const totalInvoiced = invoices.reduce((sum, item) => sum + item.amount, 0);
-  const totalReceived = payments.reduce((sum, item) => sum + item.amount, 0);
-  const totalReceivable = invoices.reduce(
+  const totalPurchases = orders.reduce((sum, item) => sum + item.amount, 0);
+  const totalBilled = bills.reduce((sum, item) => sum + item.amount, 0);
+  const totalPaid = payments.reduce((sum, item) => sum + item.amount, 0);
+  const totalPayable = bills.reduce(
     (sum, item) => sum + (item.amount - item.paid),
     0
   );
 
   function openOrderModal() {
-    setSelectedOrder(null);
     setOrderForm({
-      customer_id: customers[0]?.id ? String(customers[0].id) : "",
+      vendor_id: vendors[0]?.id ? String(vendors[0].id) : "",
       product_id: products[0]?.id ? String(products[0].id) : "",
       quantity: "1",
-      unit_price: products[0]?.sale_price ? String(products[0].sale_price) : "0",
+      unit_price: products[0]?.purchase_price ? String(products[0].purchase_price) : "0",
     });
     setShowOrderModal(true);
   }
 
   async function saveOrder(event) {
     event.preventDefault();
-    if (!orderForm.customer_id || !orderForm.product_id) {
-      alert("Please select customer and product.");
+    if (!orderForm.vendor_id || !orderForm.product_id) {
+      alert("Please select vendor and product.");
       return;
     }
 
     setSubmitting(true);
     try {
-      await createSalesOrder({
-        customer_id: Number(orderForm.customer_id),
+      await createPurchaseOrder({
+        vendor_id: Number(orderForm.vendor_id),
         lines: [
           {
             product_id: Number(orderForm.product_id),
@@ -243,48 +234,47 @@ export default function Sales({ initialTab = "orders" } = {}) {
 
   async function handleConfirmOrder(id) {
     try {
-      await confirmSalesOrder(id);
+      await confirmPurchaseOrder(id);
       await loadData();
     } catch (err) {
       alert(err.message);
     }
   }
 
-  function openInvoiceModal(order = null) {
-    setSelectedOrder(order);
-    setInvoiceForm({
-      contact_id: customers[0]?.id ? String(customers[0].id) : "",
+  function openBillModal() {
+    setBillForm({
+      contact_id: vendors[0]?.id ? String(vendors[0].id) : "",
       due_date: new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0],
       product_id: products[0]?.id ? String(products[0].id) : "",
       quantity: "1",
-      unit_price: products[0]?.sale_price ? String(products[0].sale_price) : "0",
+      unit_price: products[0]?.purchase_price ? String(products[0].purchase_price) : "0",
     });
-    setShowInvoiceModal(true);
+    setShowBillModal(true);
   }
 
-  async function saveInvoice(event) {
+  async function saveBill(event) {
     event.preventDefault();
-    if (!invoiceForm.contact_id) {
-      alert("Please select customer.");
+    if (!billForm.contact_id) {
+      alert("Please select vendor.");
       return;
     }
 
     setSubmitting(true);
     try {
       await createInvoice({
-        invoice_type: "customer_invoice",
-        contact_id: Number(invoiceForm.contact_id),
-        due_date: invoiceForm.due_date || null,
+        invoice_type: "vendor_bill",
+        contact_id: Number(billForm.contact_id),
+        due_date: billForm.due_date || null,
         lines: [
           {
-            product_id: invoiceForm.product_id ? Number(invoiceForm.product_id) : undefined,
-            description: "Sale Item",
-            quantity: Number(invoiceForm.quantity || 1),
-            unit_price: Number(invoiceForm.unit_price || 0),
+            product_id: billForm.product_id ? Number(billForm.product_id) : undefined,
+            description: "Purchase Item",
+            quantity: Number(billForm.quantity || 1),
+            unit_price: Number(billForm.unit_price || 0),
           },
         ],
       });
-      setShowInvoiceModal(false);
+      setShowBillModal(false);
       await loadData();
     } catch (err) {
       alert(err.message);
@@ -293,7 +283,7 @@ export default function Sales({ initialTab = "orders" } = {}) {
     }
   }
 
-  async function handlePostInvoice(id) {
+  async function handlePostBill(id) {
     try {
       await postInvoice(id);
       await loadData();
@@ -302,13 +292,12 @@ export default function Sales({ initialTab = "orders" } = {}) {
     }
   }
 
-  function openPaymentModal(invoice = null) {
-    setSelectedInvoice(invoice);
+  function openPaymentModal(bill = null) {
     setPaymentForm({
-      contact_id: customers[0]?.id ? String(customers[0].id) : "",
+      contact_id: vendors[0]?.id ? String(vendors[0].id) : "",
       journal_id: journals[0]?.id ? String(journals[0].id) : "",
-      amount: invoice ? String(invoice.amount - invoice.paid) : "0",
-      reference: invoice ? invoice.invoiceNo : "",
+      amount: bill ? String(bill.amount - bill.paid) : "0",
+      reference: bill ? bill.billNo : "",
     });
     setShowPaymentModal(true);
   }
@@ -316,14 +305,14 @@ export default function Sales({ initialTab = "orders" } = {}) {
   async function savePayment(event) {
     event.preventDefault();
     if (!paymentForm.contact_id || !paymentForm.journal_id || Number(paymentForm.amount) <= 0) {
-      alert("Please fill in contact, payment journal, and valid amount.");
+      alert("Please fill in vendor, payment journal, and valid amount.");
       return;
     }
 
     setSubmitting(true);
     try {
       await createPayment({
-        payment_type: "customer_receipt",
+        payment_type: "vendor_payment",
         contact_id: Number(paymentForm.contact_id),
         journal_id: Number(paymentForm.journal_id),
         amount: Number(paymentForm.amount),
@@ -343,10 +332,9 @@ export default function Sales({ initialTab = "orders" } = {}) {
       {/* PAGE HEADER */}
       <div className="page-header">
         <div>
-          <h1>Sales</h1>
-          <p>Manage sales orders, customer invoices and payments.</p>
+          <h1>Purchases</h1>
+          <p>Manage purchase orders, vendor bills and outgoing payments.</p>
         </div>
-
         <div className="financial-year">FY 2026-27</div>
       </div>
 
@@ -357,13 +345,13 @@ export default function Sales({ initialTab = "orders" } = {}) {
         <div className="stat-card">
           <div className="stat-card-top">
             <div>
-              <div className="stat-title">Sales Orders</div>
+              <div className="stat-title">Purchase Orders</div>
               <div className="stat-value">{orders.length}</div>
             </div>
             <div className="stat-icon"><ShoppingCart size={18} /></div>
           </div>
           <div className="stat-change">
-            <span>{money(totalSales)}</span>
+            <span>{money(totalPurchases)}</span>
             <small>Total order value</small>
           </div>
         </div>
@@ -371,42 +359,42 @@ export default function Sales({ initialTab = "orders" } = {}) {
         <div className="stat-card">
           <div className="stat-card-top">
             <div>
-              <div className="stat-title">Customer Invoices</div>
-              <div className="stat-value">{invoices.length}</div>
+              <div className="stat-title">Vendor Bills</div>
+              <div className="stat-value">{bills.length}</div>
             </div>
             <div className="stat-icon"><FileText size={18} /></div>
           </div>
           <div className="stat-change">
-            <span>{money(totalInvoiced)}</span>
-            <small>Total invoiced</small>
+            <span>{money(totalBilled)}</span>
+            <small>Total billed</small>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-card-top">
             <div>
-              <div className="stat-title">Received</div>
-              <div className="stat-value">{money(totalReceived)}</div>
+              <div className="stat-title">Paid</div>
+              <div className="stat-value">{money(totalPaid)}</div>
             </div>
             <div className="stat-icon"><CheckCircle2 size={18} /></div>
           </div>
           <div className="stat-change">
-            <span>Collected</span>
-            <small>Customer payments</small>
+            <span>Disbursed</span>
+            <small>Vendor payments</small>
           </div>
         </div>
 
         <div className="stat-card">
           <div className="stat-card-top">
             <div>
-              <div className="stat-title">Receivable</div>
-              <div className="stat-value">{money(totalReceivable)}</div>
+              <div className="stat-title">Payable</div>
+              <div className="stat-value">{money(totalPayable)}</div>
             </div>
             <div className="stat-icon"><Clock3 size={18} /></div>
           </div>
           <div className="stat-change">
             <span>Pending</span>
-            <small>Amount to receive</small>
+            <small>Amount to pay</small>
           </div>
         </div>
       </div>
@@ -417,21 +405,21 @@ export default function Sales({ initialTab = "orders" } = {}) {
           className={activeTab === "orders" ? "primary-btn" : "secondary-btn"}
           onClick={() => { setActiveTab("orders"); setSearch(""); }}
         >
-          <ShoppingCart size={14} /> Sales Orders
+          <ShoppingCart size={14} /> Purchase Orders
         </button>
 
         <button
-          className={activeTab === "invoices" ? "primary-btn" : "secondary-btn"}
-          onClick={() => { setActiveTab("invoices"); setSearch(""); }}
+          className={activeTab === "bills" ? "primary-btn" : "secondary-btn"}
+          onClick={() => { setActiveTab("bills"); setSearch(""); }}
         >
-          <FileText size={14} /> Customer Invoices
+          <FileText size={14} /> Vendor Bills
         </button>
 
         <button
           className={activeTab === "payments" ? "primary-btn" : "secondary-btn"}
           onClick={() => { setActiveTab("payments"); setSearch(""); }}
         >
-          <CreditCard size={14} /> Invoice Payments
+          <CreditCard size={14} /> Vendor Payments
         </button>
       </div>
 
@@ -443,9 +431,9 @@ export default function Sales({ initialTab = "orders" } = {}) {
             type="text"
             placeholder={
               activeTab === "orders"
-                ? "Search sales orders..."
-                : activeTab === "invoices"
-                ? "Search customer invoices..."
+                ? "Search purchase orders..."
+                : activeTab === "bills"
+                ? "Search vendor bills..."
                 : "Search payments..."
             }
             value={search}
@@ -455,12 +443,12 @@ export default function Sales({ initialTab = "orders" } = {}) {
 
         {activeTab === "orders" && (
           <button className="primary-btn" onClick={openOrderModal}>
-            + New Sales Order
+            + New Purchase Order
           </button>
         )}
-        {activeTab === "invoices" && (
-          <button className="primary-btn" onClick={() => openInvoiceModal()}>
-            + New Invoice
+        {activeTab === "bills" && (
+          <button className="primary-btn" onClick={openBillModal}>
+            + New Vendor Bill
           </button>
         )}
         {activeTab === "payments" && (
@@ -478,7 +466,7 @@ export default function Sales({ initialTab = "orders" } = {}) {
               <thead>
                 <tr>
                   <th>Order No</th>
-                  <th>Customer</th>
+                  <th>Vendor</th>
                   <th>Date</th>
                   <th>Amount</th>
                   <th>Status</th>
@@ -487,12 +475,12 @@ export default function Sales({ initialTab = "orders" } = {}) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" className="empty-state">Loading sales orders...</td></tr>
+                  <tr><td colSpan="6" className="empty-state">Loading purchase orders...</td></tr>
                 ) : filteredOrders.length > 0 ? (
                   filteredOrders.map((order) => (
                     <tr key={order.id}>
                       <td><strong>{order.orderNo}</strong></td>
-                      <td>{order.customer}</td>
+                      <td>{order.vendor}</td>
                       <td>{order.date}</td>
                       <td>{money(order.amount)}</td>
                       <td><span className={statusClass(order.status)}>{order.status}</span></td>
@@ -506,7 +494,7 @@ export default function Sales({ initialTab = "orders" } = {}) {
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan="6" className="empty-state">No sales orders found</td></tr>
+                  <tr><td colSpan="6" className="empty-state">No purchase orders found</td></tr>
                 )}
               </tbody>
             </table>
@@ -514,15 +502,15 @@ export default function Sales({ initialTab = "orders" } = {}) {
         </div>
       )}
 
-      {/* TAB 2: INVOICES */}
-      {activeTab === "invoices" && (
+      {/* TAB 2: BILLS */}
+      {activeTab === "bills" && (
         <div className="module-card">
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Invoice No</th>
-                  <th>Customer</th>
+                  <th>Bill No</th>
+                  <th>Vendor</th>
                   <th>Date</th>
                   <th>Due Date</th>
                   <th>Amount</th>
@@ -532,23 +520,23 @@ export default function Sales({ initialTab = "orders" } = {}) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="7" className="empty-state">Loading invoices...</td></tr>
-                ) : filteredInvoices.length > 0 ? (
-                  filteredInvoices.map((invoice) => (
-                    <tr key={invoice.id}>
-                      <td><strong>{invoice.invoiceNo}</strong></td>
-                      <td>{invoice.customer}</td>
-                      <td>{invoice.date}</td>
-                      <td>{invoice.dueDate}</td>
-                      <td>{money(invoice.amount)}</td>
-                      <td><span className={statusClass(invoice.status)}>{invoice.status}</span></td>
+                  <tr><td colSpan="7" className="empty-state">Loading bills...</td></tr>
+                ) : filteredBills.length > 0 ? (
+                  filteredBills.map((bill) => (
+                    <tr key={bill.id}>
+                      <td><strong>{bill.billNo}</strong></td>
+                      <td>{bill.vendor}</td>
+                      <td>{bill.date}</td>
+                      <td>{bill.dueDate}</td>
+                      <td>{money(bill.amount)}</td>
+                      <td><span className={statusClass(bill.status)}>{bill.status}</span></td>
                       <td>
-                        {invoice.status === "Draft" ? (
-                          <button className="small-btn" onClick={() => handlePostInvoice(invoice.id)}>
+                        {bill.status === "Draft" ? (
+                          <button className="small-btn" onClick={() => handlePostBill(bill.id)}>
                             Post
                           </button>
-                        ) : invoice.status !== "Paid" ? (
-                          <button className="small-btn" onClick={() => openPaymentModal(invoice)}>
+                        ) : bill.status !== "Paid" ? (
+                          <button className="small-btn" onClick={() => openPaymentModal(bill)}>
                             Pay
                           </button>
                         ) : (
@@ -558,7 +546,7 @@ export default function Sales({ initialTab = "orders" } = {}) {
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan="7" className="empty-state">No customer invoices found</td></tr>
+                  <tr><td colSpan="7" className="empty-state">No vendor bills found</td></tr>
                 )}
               </tbody>
             </table>
@@ -574,7 +562,7 @@ export default function Sales({ initialTab = "orders" } = {}) {
               <thead>
                 <tr>
                   <th>Payment No</th>
-                  <th>Customer</th>
+                  <th>Vendor</th>
                   <th>Date</th>
                   <th>Method</th>
                   <th>Amount</th>
@@ -588,7 +576,7 @@ export default function Sales({ initialTab = "orders" } = {}) {
                   filteredPayments.map((p) => (
                     <tr key={p.id}>
                       <td><strong>{p.paymentNo}</strong></td>
-                      <td>{p.customer}</td>
+                      <td>{p.vendor}</td>
                       <td>{p.date}</td>
                       <td><span className="badge blue">{p.method}</span></td>
                       <td>{money(p.amount)}</td>
@@ -609,21 +597,21 @@ export default function Sales({ initialTab = "orders" } = {}) {
         <div className="modal-overlay" onClick={() => setShowOrderModal(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>New Sales Order</h2>
+              <h2>New Purchase Order</h2>
               <button className="close-btn" onClick={() => setShowOrderModal(false)}>×</button>
             </div>
             <form onSubmit={saveOrder}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Customer *</label>
+                  <label>Vendor *</label>
                   <select
-                    value={orderForm.customer_id}
-                    onChange={(e) => setOrderForm({ ...orderForm, customer_id: e.target.value })}
+                    value={orderForm.vendor_id}
+                    onChange={(e) => setOrderForm({ ...orderForm, vendor_id: e.target.value })}
                     required
                   >
-                    <option value="">Select Customer</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    <option value="">Select Vendor</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
                   </select>
                 </div>
@@ -636,7 +624,7 @@ export default function Sales({ initialTab = "orders" } = {}) {
                       setOrderForm({
                         ...orderForm,
                         product_id: e.target.value,
-                        unit_price: p?.sale_price ? String(p.sale_price) : orderForm.unit_price,
+                        unit_price: p?.purchase_price ? String(p.purchase_price) : orderForm.unit_price,
                       });
                     }}
                     required
@@ -680,26 +668,26 @@ export default function Sales({ initialTab = "orders" } = {}) {
         </div>
       )}
 
-      {/* INVOICE MODAL */}
-      {showInvoiceModal && (
-        <div className="modal-overlay" onClick={() => setShowInvoiceModal(false)}>
+      {/* BILL MODAL */}
+      {showBillModal && (
+        <div className="modal-overlay" onClick={() => setShowBillModal(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>New Customer Invoice</h2>
-              <button className="close-btn" onClick={() => setShowInvoiceModal(false)}>×</button>
+              <h2>New Vendor Bill</h2>
+              <button className="close-btn" onClick={() => setShowBillModal(false)}>×</button>
             </div>
-            <form onSubmit={saveInvoice}>
+            <form onSubmit={saveBill}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Customer *</label>
+                  <label>Vendor *</label>
                   <select
-                    value={invoiceForm.contact_id}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, contact_id: e.target.value })}
+                    value={billForm.contact_id}
+                    onChange={(e) => setBillForm({ ...billForm, contact_id: e.target.value })}
                     required
                   >
-                    <option value="">Select Customer</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    <option value="">Select Vendor</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
                   </select>
                 </div>
@@ -707,20 +695,20 @@ export default function Sales({ initialTab = "orders" } = {}) {
                   <label>Due Date</label>
                   <input
                     type="date"
-                    value={invoiceForm.due_date}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, due_date: e.target.value })}
+                    value={billForm.due_date}
+                    onChange={(e) => setBillForm({ ...billForm, due_date: e.target.value })}
                   />
                 </div>
                 <div className="form-group">
                   <label>Product</label>
                   <select
-                    value={invoiceForm.product_id}
+                    value={billForm.product_id}
                     onChange={(e) => {
                       const p = products.find((x) => String(x.id) === e.target.value);
-                      setInvoiceForm({
-                        ...invoiceForm,
+                      setBillForm({
+                        ...billForm,
                         product_id: e.target.value,
-                        unit_price: p?.sale_price ? String(p.sale_price) : invoiceForm.unit_price,
+                        unit_price: p?.purchase_price ? String(p.purchase_price) : billForm.unit_price,
                       });
                     }}
                   >
@@ -736,16 +724,16 @@ export default function Sales({ initialTab = "orders" } = {}) {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={invoiceForm.unit_price}
-                    onChange={(e) => setInvoiceForm({ ...invoiceForm, unit_price: e.target.value })}
+                    value={billForm.unit_price}
+                    onChange={(e) => setBillForm({ ...billForm, unit_price: e.target.value })}
                     required
                   />
                 </div>
               </div>
               <div className="form-actions">
-                <button type="button" className="secondary-btn" onClick={() => setShowInvoiceModal(false)}>Cancel</button>
+                <button type="button" className="secondary-btn" onClick={() => setShowBillModal(false)}>Cancel</button>
                 <button type="submit" className="primary-btn" disabled={submitting}>
-                  {submitting ? "Creating..." : "Create Invoice"}
+                  {submitting ? "Creating..." : "Create Bill"}
                 </button>
               </div>
             </form>
@@ -758,21 +746,21 @@ export default function Sales({ initialTab = "orders" } = {}) {
         <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Record Customer Payment</h2>
+              <h2>Record Vendor Payment</h2>
               <button className="close-btn" onClick={() => setShowPaymentModal(false)}>×</button>
             </div>
             <form onSubmit={savePayment}>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>Customer *</label>
+                  <label>Vendor *</label>
                   <select
                     value={paymentForm.contact_id}
                     onChange={(e) => setPaymentForm({ ...paymentForm, contact_id: e.target.value })}
                     required
                   >
-                    <option value="">Select Customer</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
+                    <option value="">Select Vendor</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
                   </select>
                 </div>
@@ -801,12 +789,12 @@ export default function Sales({ initialTab = "orders" } = {}) {
                   />
                 </div>
                 <div className="form-group">
-                  <label>Reference / Invoice #</label>
+                  <label>Reference / Bill #</label>
                   <input
                     type="text"
                     value={paymentForm.reference}
                     onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })}
-                    placeholder="e.g. INV-001"
+                    placeholder="e.g. BILL-001"
                   />
                 </div>
               </div>

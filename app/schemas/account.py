@@ -1,6 +1,6 @@
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 VALID_ACCOUNT_TYPES = {"asset", "liability", "equity", "income", "expense"}
 
@@ -11,6 +11,12 @@ def normalize_account_type(v: str) -> str:
     v_clean = v.strip().lower()
     if v_clean == "capital":
         return "equity"
+    if v_clean == "assets":
+        return "asset"
+    if v_clean == "liabilities":
+        return "liability"
+    if v_clean == "expenses":
+        return "expense"
     if v_clean not in VALID_ACCOUNT_TYPES:
         types_str = ", ".join(sorted(VALID_ACCOUNT_TYPES))
         raise ValueError(f"account_type must be one of: {types_str}")
@@ -19,11 +25,22 @@ def normalize_account_type(v: str) -> str:
 
 class AccountBase(BaseModel):
     code: str = Field(..., min_length=1, max_length=50, description="Unique account code (e.g. 1000, 1010)")
-    name: str = Field(..., min_length=1, max_length=150, description="Account Name")
+    name: Optional[str] = Field(None, max_length=150, description="Account Name")
+    account_name: Optional[str] = Field(None, max_length=150, description="Legacy Account Name")
     account_type: str = Field(..., description="Account Type: asset, liability, equity, income, expense")
     parent_id: Optional[int] = Field(None, description="Parent account ID for hierarchy")
     description: Optional[str] = Field(None, description="Optional account description")
     is_active: bool = Field(default=True, description="Active status")
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_name(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("name") and data.get("account_name"):
+                data["name"] = data["account_name"]
+            elif data.get("name") and not data.get("account_name"):
+                data["account_name"] = data["name"]
+        return data
 
     @field_validator("account_type", mode="before")
     @classmethod
@@ -33,16 +50,19 @@ class AccountBase(BaseModel):
     @field_validator("code", mode="before")
     @classmethod
     def validate_code(cls, v: str) -> str:
-        if not v or not v.strip():
+        if v is None or not str(v).strip():
             raise ValueError("Account code cannot be empty")
-        return v.strip().upper()
+        return str(v).strip().upper()
 
-    @field_validator("name", mode="before")
+    @field_validator("name")
     @classmethod
-    def validate_name(cls, v: str) -> str:
-        if not v or not v.strip():
+    def validate_name(cls, v: Optional[str]) -> str:
+        if v is None or not str(v).strip():
             raise ValueError("Account name cannot be empty")
-        return v.strip()
+        v_clean = str(v).strip()
+        if len(v_clean) < 2:
+            raise ValueError("Account name must be at least 2 characters")
+        return v_clean
 
 
 class AccountCreate(AccountBase):
@@ -51,11 +71,22 @@ class AccountCreate(AccountBase):
 
 class AccountUpdate(BaseModel):
     code: Optional[str] = Field(None, min_length=1, max_length=50)
-    name: Optional[str] = Field(None, min_length=1, max_length=150)
+    name: Optional[str] = Field(None, max_length=150)
+    account_name: Optional[str] = Field(None, max_length=150)
     account_type: Optional[str] = None
     parent_id: Optional[int] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_update_name(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("name") and data.get("account_name"):
+                data["name"] = data["account_name"]
+            elif data.get("name") and not data.get("account_name"):
+                data["account_name"] = data["name"]
+        return data
 
     @field_validator("account_type", mode="before")
     @classmethod
@@ -69,18 +100,21 @@ class AccountUpdate(BaseModel):
     def validate_update_code(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        if not v.strip():
+        if not str(v).strip():
             raise ValueError("Account code cannot be empty")
-        return v.strip().upper()
+        return str(v).strip().upper()
 
-    @field_validator("name", mode="before")
+    @field_validator("name")
     @classmethod
     def validate_update_name(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        if not v.strip():
+        v_clean = str(v).strip()
+        if not v_clean:
             raise ValueError("Account name cannot be empty")
-        return v.strip()
+        if len(v_clean) < 2:
+            raise ValueError("Account name must be at least 2 characters")
+        return v_clean
 
 
 class AccountStatusUpdate(BaseModel):
@@ -100,6 +134,7 @@ class AccountResponse(BaseModel):
     id: int
     code: str
     name: str
+    account_name: Optional[str] = None
     account_type: str
     parent_id: Optional[int] = None
     description: Optional[str] = None
@@ -109,3 +144,21 @@ class AccountResponse(BaseModel):
     parent: Optional[AccountSummary] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AccountTreeNode(BaseModel):
+    id: int
+    code: str
+    name: str
+    account_name: Optional[str] = None
+    account_type: str
+    parent_id: Optional[int] = None
+    description: Optional[str] = None
+    is_active: bool
+    level: int = 0
+    children: List["AccountTreeNode"] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+AccountTreeNode.model_rebuild()

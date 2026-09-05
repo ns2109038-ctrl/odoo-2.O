@@ -1,8 +1,19 @@
-export const API_BASE_URL = "http://127.0.0.1:8000";
+// ── Centralized API Client ───────────────────────────────────────────────────
+import { getStoredAuth, clearAuth } from "./auth.js";
 
-async function _parseError(res) {
+export const API_BASE_URL = import.meta.env?.VITE_API_URL || "http://127.0.0.1:8000";
+
+/**
+ * Format server error messages nicely
+ */
+export async function parseError(res) {
   let data;
-  try { data = await res.json(); } catch { return `Server error (HTTP ${res.status})`; }
+  try {
+    data = await res.json();
+  } catch {
+    return `Server error (HTTP ${res.status})`;
+  }
+  if (!data) return `Request failed (HTTP ${res.status})`;
   if (typeof data.detail === "string") return data.detail;
   if (Array.isArray(data.detail)) {
     return data.detail
@@ -14,39 +25,338 @@ async function _parseError(res) {
   return `Request failed (HTTP ${res.status})`;
 }
 
-function _networkErr() {
+function networkErr() {
   return Object.assign(
     new Error("Unable to connect to the Urban Furniture server. Please check your connection."),
     { status: 0 }
   );
 }
 
+/**
+ * Central request wrapper with Authorization header, 401 handling, and 403 handling
+ */
+export async function apiRequest(endpoint, options = {}) {
+  const url = `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const auth = getStoredAuth();
+  const token = auth?.token;
+
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw networkErr();
+  }
+
+  if (res.status === 401) {
+    clearAuth();
+    // Only redirect in browser environment if not already on login
+    if (typeof window !== "undefined" && !window.location.pathname.includes("login")) {
+      window.dispatchEvent(new CustomEvent("uf:auth-expired"));
+    }
+    const errText = await parseError(res);
+    throw Object.assign(new Error(errText || "Session expired. Please log in again."), { status: 401 });
+  }
+
+  if (res.status === 403) {
+    const errText = await parseError(res);
+    throw Object.assign(new Error(errText || "Permission denied. You do not have access to perform this action."), { status: 403 });
+  }
+
+  if (!res.ok) {
+    const errText = await parseError(res);
+    throw Object.assign(new Error(errText), { status: res.status });
+  }
+
+  if (res.status === 204) {
+    return null;
+  }
+
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+// ── 1. Auth ─────────────────────────────────────────────────────────────────
 export async function loginUser(login_id, password) {
   let res;
   try {
-    res = await fetch(`${API_BASE_URL}/users/login`, {
+    res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login_id, password }),
+      body: JSON.stringify({ identifier: login_id, password }),
     });
   } catch {
-    throw _networkErr();
+    throw networkErr();
   }
-  if (!res.ok) throw Object.assign(new Error(await _parseError(res)), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
   return res.json();
 }
 
 export async function registerUser({ name, login_id, email, password, confirm_password, role }) {
   let res;
   try {
-    res = await fetch(`${API_BASE_URL}/users/register`, {
+    res = await fetch(`${API_BASE_URL}/api/users/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, login_id, email, password, confirm_password, role }),
     });
   } catch {
-    throw _networkErr();
+    throw networkErr();
   }
-  if (!res.ok) throw Object.assign(new Error(await _parseError(res)), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
   return res.json();
 }
+
+// ── 2. Users ────────────────────────────────────────────────────────────────
+export const getUsers = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.is_active !== undefined) query.append("is_active", params.is_active);
+  if (params.role) query.append("role", params.role);
+  const qStr = query.toString();
+  return apiRequest(`/api/users${qStr ? `?${qStr}` : ""}`);
+};
+export const getUserById = (id) => apiRequest(`/api/users/${id}`);
+export const createUser = (data) => apiRequest("/api/users", { method: "POST", body: JSON.stringify(data) });
+export const updateUser = (id, data) => apiRequest(`/api/users/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const updateUserStatus = (id, is_active) => apiRequest(`/api/users/${id}/status`, { method: "PATCH", body: JSON.stringify({ is_active }) });
+export const deleteUser = (id) => apiRequest(`/api/users/${id}`, { method: "DELETE" });
+
+// ── 3. Contacts ─────────────────────────────────────────────────────────────
+export const getContacts = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.is_active !== undefined) query.append("is_active", params.is_active);
+  if (params.contact_type) query.append("contact_type", params.contact_type);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/contacts${qStr ? `?${qStr}` : ""}`);
+};
+export const getContactById = (id) => apiRequest(`/api/contacts/${id}`);
+export const createContact = (data) => apiRequest("/api/contacts", { method: "POST", body: JSON.stringify(data) });
+export const updateContact = (id, data) => apiRequest(`/api/contacts/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteContact = (id) => apiRequest(`/api/contacts/${id}`, { method: "DELETE" });
+
+// ── 4. Products ─────────────────────────────────────────────────────────────
+export const getProducts = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.is_active !== undefined) query.append("is_active", params.is_active);
+  if (params.category) query.append("category", params.category);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/products${qStr ? `?${qStr}` : ""}`);
+};
+export const getProductById = (id) => apiRequest(`/api/products/${id}`);
+export const createProduct = (data) => apiRequest("/api/products", { method: "POST", body: JSON.stringify(data) });
+export const updateProduct = (id, data) => apiRequest(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteProduct = (id) => apiRequest(`/api/products/${id}`, { method: "DELETE" });
+
+// ── 5. Accounts (Chart of Accounts) ─────────────────────────────────────────
+export const getAccounts = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.is_active !== undefined) query.append("is_active", params.is_active);
+  if (params.account_type) query.append("account_type", params.account_type);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/accounts${qStr ? `?${qStr}` : ""}`);
+};
+export const getAccountById = (id) => apiRequest(`/api/accounts/${id}`);
+export const createAccount = (data) => apiRequest("/api/accounts", { method: "POST", body: JSON.stringify(data) });
+export const updateAccount = (id, data) => apiRequest(`/api/accounts/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteAccount = (id) => apiRequest(`/api/accounts/${id}`, { method: "DELETE" });
+
+// ── 6. Journals ─────────────────────────────────────────────────────────────
+export const getJournals = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.is_active !== undefined) query.append("is_active", params.is_active);
+  if (params.journal_type) query.append("journal_type", params.journal_type);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/journals${qStr ? `?${qStr}` : ""}`);
+};
+export const getJournalById = (id) => apiRequest(`/api/journals/${id}`);
+export const createJournal = (data) => apiRequest("/api/journals", { method: "POST", body: JSON.stringify(data) });
+export const updateJournal = (id, data) => apiRequest(`/api/journals/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const deleteJournal = (id) => apiRequest(`/api/journals/${id}`, { method: "DELETE" });
+
+// ── 7. Journal Entries ──────────────────────────────────────────────────────
+export const getJournalEntries = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.journal_id !== undefined) query.append("journal_id", params.journal_id);
+  if (params.status) query.append("status", params.status);
+  if (params.start_date) query.append("start_date", params.start_date);
+  if (params.end_date) query.append("end_date", params.end_date);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/journal-entries${qStr ? `?${qStr}` : ""}`);
+};
+export const getJournalEntryById = (id) => apiRequest(`/api/journal-entries/${id}`);
+export const createJournalEntry = (data) => apiRequest("/api/journal-entries", { method: "POST", body: JSON.stringify(data) });
+export const updateJournalEntry = (id, data) => apiRequest(`/api/journal-entries/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const postJournalEntry = (id) => apiRequest(`/api/journal-entries/${id}/post`, { method: "POST" });
+export const cancelJournalEntry = (id) => apiRequest(`/api/journal-entries/${id}/cancel`, { method: "POST" });
+export const deleteJournalEntry = (id) => apiRequest(`/api/journal-entries/${id}`, { method: "DELETE" });
+
+// ── 8. Sales Orders ─────────────────────────────────────────────────────────
+export const getSalesOrders = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.customer_id !== undefined) query.append("customer_id", params.customer_id);
+  if (params.status) query.append("status", params.status);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/sales${qStr ? `?${qStr}` : ""}`);
+};
+export const getSalesOrderById = (id) => apiRequest(`/api/sales/${id}`);
+export const createSalesOrder = (data) => apiRequest("/api/sales", { method: "POST", body: JSON.stringify(data) });
+export const updateSalesOrder = (id, data) => apiRequest(`/api/sales/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const confirmSalesOrder = (id) => apiRequest(`/api/sales/${id}/confirm`, { method: "POST" });
+export const cancelSalesOrder = (id) => apiRequest(`/api/sales/${id}/cancel`, { method: "POST" });
+
+// ── 9. Purchase Orders ──────────────────────────────────────────────────────
+export const getPurchaseOrders = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.vendor_id !== undefined) query.append("vendor_id", params.vendor_id);
+  if (params.status) query.append("status", params.status);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/purchases${qStr ? `?${qStr}` : ""}`);
+};
+export const getPurchaseOrderById = (id) => apiRequest(`/api/purchases/${id}`);
+export const createPurchaseOrder = (data) => apiRequest("/api/purchases", { method: "POST", body: JSON.stringify(data) });
+export const updatePurchaseOrder = (id, data) => apiRequest(`/api/purchases/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const confirmPurchaseOrder = (id) => apiRequest(`/api/purchases/${id}/confirm`, { method: "POST" });
+export const cancelPurchaseOrder = (id) => apiRequest(`/api/purchases/${id}/cancel`, { method: "POST" });
+
+// ── 10. Invoices & Bills ────────────────────────────────────────────────────
+export const getInvoices = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.invoice_type) query.append("invoice_type", params.invoice_type);
+  if (params.status) query.append("status", params.status);
+  if (params.contact_id !== undefined) query.append("contact_id", params.contact_id);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/invoices${qStr ? `?${qStr}` : ""}`);
+};
+export const getInvoiceById = (id) => apiRequest(`/api/invoices/${id}`);
+export const createInvoice = (data) => apiRequest("/api/invoices", { method: "POST", body: JSON.stringify(data) });
+export const updateInvoice = (id, data) => apiRequest(`/api/invoices/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const postInvoice = (id) => apiRequest(`/api/invoices/${id}/post`, { method: "POST" });
+export const cancelInvoice = (id) => apiRequest(`/api/invoices/${id}/cancel`, { method: "POST" });
+
+// ── 11. Payments ────────────────────────────────────────────────────────────
+export const getPayments = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.payment_type) query.append("payment_type", params.payment_type);
+  if (params.status) query.append("status", params.status);
+  if (params.contact_id !== undefined) query.append("contact_id", params.contact_id);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/payments${qStr ? `?${qStr}` : ""}`);
+};
+export const getPaymentById = (id) => apiRequest(`/api/payments/${id}`);
+export const createPayment = (data) => apiRequest("/api/payments", { method: "POST", body: JSON.stringify(data) });
+export const updatePayment = (id, data) => apiRequest(`/api/payments/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const postPayment = (id) => apiRequest(`/api/payments/${id}/post`, { method: "POST" });
+export const cancelPayment = (id) => apiRequest(`/api/payments/${id}/cancel`, { method: "POST" });
+
+// ── 12. Analytic Accounts ───────────────────────────────────────────────────
+export const getAnalyticAccounts = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.is_active !== undefined) query.append("is_active", params.is_active);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/analytic-accounts${qStr ? `?${qStr}` : ""}`);
+};
+export const getAnalyticAccountById = (id) => apiRequest(`/api/analytic-accounts/${id}`);
+export const createAnalyticAccount = (data) => apiRequest("/api/analytic-accounts", { method: "POST", body: JSON.stringify(data) });
+export const updateAnalyticAccount = (id, data) => apiRequest(`/api/analytic-accounts/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const setAnalyticAccountStatus = (id, is_active) => apiRequest(`/api/analytic-accounts/${id}/status`, { method: "PATCH", body: JSON.stringify({ is_active }) });
+export const deleteAnalyticAccount = (id) => apiRequest(`/api/analytic-accounts/${id}`, { method: "DELETE" });
+
+// ── 13. Budgets ─────────────────────────────────────────────────────────────
+export const getBudgets = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.skip !== undefined) query.append("skip", params.skip);
+  if (params.limit !== undefined) query.append("limit", params.limit);
+  if (params.status) query.append("status", params.status);
+  if (params.analytic_account_id !== undefined) query.append("analytic_account_id", params.analytic_account_id);
+  if (params.search) query.append("search", params.search);
+  const qStr = query.toString();
+  return apiRequest(`/api/budgets${qStr ? `?${qStr}` : ""}`);
+};
+export const getBudgetById = (id) => apiRequest(`/api/budgets/${id}`);
+export const createBudget = (data) => apiRequest("/api/budgets", { method: "POST", body: JSON.stringify(data) });
+export const updateBudget = (id, data) => apiRequest(`/api/budgets/${id}`, { method: "PUT", body: JSON.stringify(data) });
+export const activateBudget = (id) => apiRequest(`/api/budgets/${id}/activate`, { method: "POST" });
+export const closeBudget = (id) => apiRequest(`/api/budgets/${id}/close`, { method: "POST" });
+export const deleteBudget = (id) => apiRequest(`/api/budgets/${id}`, { method: "DELETE" });
+
+// ── 14. Reports ─────────────────────────────────────────────────────────────
+export const getTrialBalanceReport = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.start_date) query.append("start_date", params.start_date);
+  if (params.end_date) query.append("end_date", params.end_date);
+  const qStr = query.toString();
+  return apiRequest(`/api/reports/trial-balance${qStr ? `?${qStr}` : ""}`);
+};
+export const getBalanceSheetReport = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.start_date) query.append("start_date", params.start_date);
+  if (params.end_date) query.append("end_date", params.end_date);
+  const qStr = query.toString();
+  return apiRequest(`/api/reports/balance-sheet${qStr ? `?${qStr}` : ""}`);
+};
+export const getProfitLossReport = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.start_date) query.append("start_date", params.start_date);
+  if (params.end_date) query.append("end_date", params.end_date);
+  const qStr = query.toString();
+  return apiRequest(`/api/reports/profit-loss${qStr ? `?${qStr}` : ""}`);
+};
+export const getBudgetReport = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.start_date) query.append("start_date", params.start_date);
+  if (params.end_date) query.append("end_date", params.end_date);
+  if (params.budget_id) query.append("budget_id", params.budget_id);
+  if (params.analytic_account_id) query.append("analytic_account_id", params.analytic_account_id);
+  const qStr = query.toString();
+  return apiRequest(`/api/reports/budget${qStr ? `?${qStr}` : ""}`);
+};
+
+// ── 15. Dashboard ───────────────────────────────────────────────────────────
+export const getDashboardSummary = () => apiRequest("/api/dashboard/summary");
+export const getDashboardRecentTransactions = (limit = 10) => apiRequest(`/api/dashboard/recent-transactions?limit=${limit}`);

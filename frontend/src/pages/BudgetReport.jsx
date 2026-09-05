@@ -1,51 +1,60 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { getBudgetReport, getTrialBalanceReport, getBalanceSheetReport, getProfitLossReport } from "../lib/api.js";
+import Alert from "../components/ui/Alert.jsx";
 
 function BudgetReport() {
+  const [reportType, setReportType] = useState("budget"); // "budget" | "trial-balance" | "balance-sheet" | "profit-loss"
   const [view, setView] = useState("list");
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const reports = [
-    {
-      id: 1,
-      department: "Sales",
-      original: 500000,
-      revised: 550000,
-      used: 385000,
-    },
-    {
-      id: 2,
-      department: "Purchase",
-      original: 300000,
-      revised: 320000,
-      used: 245000,
-    },
-    {
-      id: 3,
-      department: "Administration",
-      original: 150000,
-      revised: 145000,
-      used: 92000,
-    },
-    {
-      id: 4,
-      department: "Marketing",
-      original: 100000,
-      revised: 120000,
-      used: 78000,
-    },
-    {
-      id: 5,
-      department: "Finance",
-      original: 120000,
-      revised: 125000,
-      used: 65000,
-    },
-  ];
+  const [budgetReportData, setBudgetReportData] = useState(null);
+  const [tbData, setTbData] = useState(null);
+  const [bsData, setBsData] = useState(null);
+  const [plData, setPlData] = useState(null);
 
-  const filteredReports = reports.filter((report) =>
-    report.department
-      .toLowerCase()
-      .includes(search.toLowerCase())
+  const loadReport = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      if (reportType === "budget") {
+        const data = await getBudgetReport();
+        setBudgetReportData(data);
+      } else if (reportType === "trial-balance") {
+        const data = await getTrialBalanceReport();
+        setTbData(data);
+      } else if (reportType === "balance-sheet") {
+        const data = await getBalanceSheetReport();
+        setBsData(data);
+      } else if (reportType === "profit-loss") {
+        const data = await getProfitLossReport();
+        setPlData(data);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReport();
+  }, [reportType]);
+
+  const rawReports = useMemo(() => {
+    if (!budgetReportData?.items) return [];
+    return budgetReportData.items.map((it, idx) => ({
+      id: it.account_id || idx + 1,
+      department: it.name || "Account",
+      original: Number(it.planned || 0),
+      revised: Number(it.planned || 0),
+      used: Number(it.actual || 0),
+    }));
+  }, [budgetReportData]);
+
+  const filteredReports = rawReports.filter((report) =>
+    report.department.toLowerCase().includes(search.toLowerCase())
   );
 
   const totals = useMemo(() => {
@@ -72,468 +81,397 @@ function BudgetReport() {
       : 0;
 
   const formatMoney = (amount) => {
-    return `₹${amount.toLocaleString("en-IN")}`;
+    return `₹${Number(amount || 0).toLocaleString("en-IN")}`;
   };
 
   const getPercentage = (used, revised) => {
-    if (!revised) {
-      return 0;
-    }
-
-    return Math.min(
-      100,
-      Math.round((used / revised) * 100)
-    );
+    if (!revised) return 0;
+    return Math.min(100, Math.round((used / revised) * 100));
   };
 
   return (
     <div className="module-page">
       {/* HEADER */}
-
       <div className="page-header">
         <div>
-          <h1>Budget Report</h1>
-
-          <p>
-            Analyze original, revised and utilized budgets.
-          </p>
+          <h1>Financial & Budget Reports</h1>
+          <p>Analyze trial balance, balance sheet, profit & loss, and budget utilization.</p>
         </div>
 
-        <div className="view-switcher">
+        <div className="view-switcher" style={{ gap: "8px" }}>
           <button
-            className={
-              view === "list"
-                ? "view-btn active"
-                : "view-btn"
-            }
-            onClick={() => setView("list")}
+            className={reportType === "budget" ? "view-btn active" : "view-btn"}
+            onClick={() => setReportType("budget")}
           >
-            ☷ List View
+            Budget Report
           </button>
-
           <button
-            className={
-              view === "report"
-                ? "view-btn active"
-                : "view-btn"
-            }
-            onClick={() => setView("report")}
+            className={reportType === "trial-balance" ? "view-btn active" : "view-btn"}
+            onClick={() => setReportType("trial-balance")}
           >
-            ◔ Report View
+            Trial Balance
+          </button>
+          <button
+            className={reportType === "balance-sheet" ? "view-btn active" : "view-btn"}
+            onClick={() => setReportType("balance-sheet")}
+          >
+            Balance Sheet
+          </button>
+          <button
+            className={reportType === "profit-loss" ? "view-btn active" : "view-btn"}
+            onClick={() => setReportType("profit-loss")}
+          >
+            Profit & Loss
           </button>
         </div>
       </div>
 
-      {/* SUMMARY */}
+      {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
-      <div className="account-summary">
-        <div className="account-summary-card">
-          <div>
-            <span>Original Budget</span>
-
-            <strong>
-              {formatMoney(totals.original)}
-            </strong>
-          </div>
-
-          <div className="account-summary-icon">
-            O
-          </div>
-        </div>
-
-        <div className="account-summary-card">
-          <div>
-            <span>Revised Budget</span>
-
-            <strong>
-              {formatMoney(totals.revised)}
-            </strong>
-          </div>
-
-          <div className="account-summary-icon">
-            R
-          </div>
-        </div>
-
-        <div className="account-summary-card">
-          <div>
-            <span>Budget Used</span>
-
-            <strong>
-              {formatMoney(totals.used)}
-            </strong>
-          </div>
-
-          <div className="account-summary-icon">
-            U
-          </div>
-        </div>
-
-        <div className="account-summary-card">
-          <div>
-            <span>Remaining Budget</span>
-
-            <strong>
-              {formatMoney(remaining)}
-            </strong>
-          </div>
-
-          <div className="account-summary-icon">
-            ✓
-          </div>
-        </div>
-      </div>
-
-      {/* LIST VIEW */}
-
-      {view === "list" && (
+      {/* ── 1. BUDGET REPORT ────────────────────────────────────────────── */}
+      {reportType === "budget" && (
         <>
-          <div className="module-toolbar">
-            <input
-              type="text"
-              placeholder="Search department..."
-              value={search}
-              onChange={(e) =>
-                setSearch(e.target.value)
-              }
-            />
-
-            <div className="contact-count">
-              Departments:{" "}
-              <strong>
-                {filteredReports.length}
-              </strong>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "10px" }}>
+            <div className="view-switcher">
+              <button
+                className={view === "list" ? "view-btn active" : "view-btn"}
+                onClick={() => setView("list")}
+              >
+                ☷ List View
+              </button>
+              <button
+                className={view === "report" ? "view-btn active" : "view-btn"}
+                onClick={() => setView("report")}
+              >
+                ◔ Report View
+              </button>
             </div>
           </div>
 
-          <div className="module-card">
-            <div className="table-wrapper">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Department</th>
-                    <th>Original Budget</th>
-                    <th>Revised Budget</th>
-                    <th>Used Budget</th>
-                    <th>Remaining</th>
-                    <th>Utilization</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
+          <div className="account-summary">
+            <div className="account-summary-card">
+              <div>
+                <span>Planned Budget</span>
+                <strong>{formatMoney(totals.original)}</strong>
+              </div>
+              <div className="account-summary-icon">P</div>
+            </div>
 
-                <tbody>
-                  {filteredReports.length > 0 ? (
-                    filteredReports.map((report) => {
-                      const remainingAmount =
-                        report.revised - report.used;
+            <div className="account-summary-card">
+              <div>
+                <span>Actual Used</span>
+                <strong>{formatMoney(totals.used)}</strong>
+              </div>
+              <div className="account-summary-icon">U</div>
+            </div>
 
-                      const percentage =
-                        getPercentage(
-                          report.used,
-                          report.revised
-                        );
+            <div className="account-summary-card">
+              <div>
+                <span>Remaining Budget</span>
+                <strong>{formatMoney(remaining)}</strong>
+              </div>
+              <div className="account-summary-icon">✓</div>
+            </div>
 
-                      let status = "On Track";
-
-                      if (percentage >= 90) {
-                        status = "Near Limit";
-                      }
-
-                      if (percentage >= 100) {
-                        status = "Exceeded";
-                      }
-
-                      return (
-                        <tr key={report.id}>
-                          <td>
-                            <strong>
-                              {report.department}
-                            </strong>
-                          </td>
-
-                          <td>
-                            {formatMoney(
-                              report.original
-                            )}
-                          </td>
-
-                          <td>
-                            {formatMoney(
-                              report.revised
-                            )}
-                          </td>
-
-                          <td>
-                            {formatMoney(
-                              report.used
-                            )}
-                          </td>
-
-                          <td>
-                            {formatMoney(
-                              remainingAmount
-                            )}
-                          </td>
-
-                          <td>
-                            <div className="budget-progress-cell">
-                              <div className="budget-progress">
-                                <div
-                                  className="budget-progress-fill"
-                                  style={{
-                                    width: `${percentage}%`,
-                                  }}
-                                ></div>
-                              </div>
-
-                              <span>
-                                {percentage}%
-                              </span>
-                            </div>
-                          </td>
-
-                          <td>
-                            <span
-                              className={
-                                status === "On Track"
-                                  ? "badge green"
-                                  : status ===
-                                    "Near Limit"
-                                  ? "badge orange"
-                                  : "badge red"
-                              }
-                            >
-                              {status}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan="7"
-                        className="empty-state"
-                      >
-                        No budget report found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="account-summary-card">
+              <div>
+                <span>Utilization</span>
+                <strong>{usedPercentage}%</strong>
+              </div>
+              <div className="account-summary-icon">%</div>
             </div>
           </div>
+
+          {view === "list" && (
+            <>
+              <div className="module-toolbar">
+                <input
+                  type="text"
+                  placeholder="Search account / department..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <div className="contact-count">
+                  Items: <strong>{filteredReports.length}</strong>
+                </div>
+              </div>
+
+              <div className="module-card">
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Account / Department</th>
+                        <th>Planned Budget</th>
+                        <th>Actual Spend</th>
+                        <th>Remaining</th>
+                        <th>Utilization</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr><td colSpan="6" className="empty-state">Loading budget report...</td></tr>
+                      ) : filteredReports.length > 0 ? (
+                        filteredReports.map((report) => {
+                          const remainingAmount = report.revised - report.used;
+                          const percentage = getPercentage(report.used, report.revised);
+                          let status = "On Track";
+                          if (percentage >= 90) status = "Near Limit";
+                          if (percentage >= 100) status = "Exceeded";
+
+                          return (
+                            <tr key={report.id}>
+                              <td><strong>{report.department}</strong></td>
+                              <td>{formatMoney(report.original)}</td>
+                              <td>{formatMoney(report.used)}</td>
+                              <td>{formatMoney(remainingAmount)}</td>
+                              <td>
+                                <div className="budget-progress-cell">
+                                  <div className="budget-progress">
+                                    <div
+                                      className="budget-progress-fill"
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <span>{percentage}%</span>
+                                </div>
+                              </td>
+                              <td>
+                                <span className={status === "On Track" ? "badge green" : "badge red"}>
+                                  {status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr><td colSpan="6" className="empty-state">No budget records found</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {view === "report" && (
+            <div className="budget-report-grid">
+              <div className="module-card">
+                <div className="panel-header">
+                  <h3>Budget Distribution</h3>
+                </div>
+                <div className="chart-box">
+                  <div
+                    className="pie-chart"
+                    style={{
+                      background: `conic-gradient(#2563eb 0deg ${usedPercentage * 3.6}deg, #dbeafe ${usedPercentage * 3.6}deg 360deg)`,
+                    }}
+                  >
+                    <div className="pie-inner">
+                      <strong>{usedPercentage}%</strong>
+                      <span>Used</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="module-card">
+                <div className="panel-header">
+                  <h3>Summary Overview</h3>
+                </div>
+                <div className="budget-summary-box">
+                  <div className="budget-summary-row">
+                    <span>Total Planned</span>
+                    <strong>{formatMoney(totals.original)}</strong>
+                  </div>
+                  <div className="budget-summary-row">
+                    <span>Total Actual Used</span>
+                    <strong>{formatMoney(totals.used)}</strong>
+                  </div>
+                  <div className="budget-summary-row highlight">
+                    <span>Remaining Budget</span>
+                    <strong>{formatMoney(remaining)}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* REPORT VIEW */}
+      {/* ── 2. TRIAL BALANCE ────────────────────────────────────────────── */}
+      {reportType === "trial-balance" && (
+        <div className="module-card">
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Account Name</th>
+                  <th>Type</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan="6" className="empty-state">Loading trial balance...</td></tr>
+                ) : tbData?.items?.length > 0 ? (
+                  tbData.items.map((it) => (
+                    <tr key={it.account_id}>
+                      <td><strong>{it.code}</strong></td>
+                      <td>{it.name}</td>
+                      <td><span className="badge blue">{it.type}</span></td>
+                      <td>{formatMoney(it.debit)}</td>
+                      <td>{formatMoney(it.credit)}</td>
+                      <td><strong>{formatMoney(it.balance)}</strong></td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan="6" className="empty-state">No posted accounting transactions found</td></tr>
+                )}
+              </tbody>
+              {tbData && (
+                <tfoot>
+                  <tr>
+                    <th colSpan="3">Total</th>
+                    <th>{formatMoney(tbData.total_debit)}</th>
+                    <th>{formatMoney(tbData.total_credit)}</th>
+                    <th>{formatMoney(tbData.total_balance)}</th>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
 
-      {view === "report" && (
-        <div className="budget-report-layout">
-          {/* PIE CHART */}
-
-          <div className="module-card budget-chart-card">
+      {/* ── 3. BALANCE SHEET ────────────────────────────────────────────── */}
+      {reportType === "balance-sheet" && (
+        <div className="budget-report-grid">
+          <div className="module-card">
             <div className="panel-header">
-              <div>
-                <h3>Budget Utilization</h3>
-
-                <p>
-                  Overall revised budget utilization
-                </p>
-              </div>
+              <h3>Assets</h3>
             </div>
-
-            <div className="pie-chart-area">
-              <div
-                className="budget-pie"
-                style={{
-                  background: `conic-gradient(
-                    #2563eb 0deg ${
-                      usedPercentage * 3.6
-                    }deg,
-                    #dbeafe ${
-                      usedPercentage * 3.6
-                    }deg 360deg
-                  )`,
-                }}
-              >
-                <div className="pie-inner">
-                  <strong>
-                    {usedPercentage}%
-                  </strong>
-
-                  <span>Used</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="chart-legend">
-              <div>
-                <span className="legend-dot used"></span>
-                <span>Used Budget</span>
-
-                <strong>
-                  {formatMoney(totals.used)}
-                </strong>
-              </div>
-
-              <div>
-                <span className="legend-dot remaining"></span>
-                <span>Remaining</span>
-
-                <strong>
-                  {formatMoney(remaining)}
-                </strong>
-              </div>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr><th>Account</th><th>Balance</th></tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="2" className="empty-state">Loading...</td></tr>
+                  ) : bsData?.assets?.length > 0 ? (
+                    bsData.assets.map((a) => (
+                      <tr key={a.account_id}><td>{a.name}</td><td>{formatMoney(a.balance)}</td></tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan="2" className="empty-state">No assets recorded</td></tr>
+                  )}
+                </tbody>
+                {bsData && (
+                  <tfoot>
+                    <tr><th>Total Assets</th><th>{formatMoney(bsData.total_assets)}</th></tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
 
-          {/* REPORT SUMMARY */}
-
           <div className="module-card">
             <div className="panel-header">
-              <div>
-                <h3>Budget Summary</h3>
-
-                <p>
-                  Current financial year overview
-                </p>
-              </div>
+              <h3>Liabilities & Equity</h3>
             </div>
-
-            <div className="budget-summary-box">
-              <div className="budget-summary-row">
-                <span>Original Budget</span>
-
-                <strong>
-                  {formatMoney(totals.original)}
-                </strong>
-              </div>
-
-              <div className="budget-summary-row">
-                <span>Revised Budget</span>
-
-                <strong>
-                  {formatMoney(totals.revised)}
-                </strong>
-              </div>
-
-              <div className="budget-summary-row">
-                <span>Total Used</span>
-
-                <strong>
-                  {formatMoney(totals.used)}
-                </strong>
-              </div>
-
-              <div className="budget-summary-row highlight">
-                <span>Remaining Budget</span>
-
-                <strong>
-                  {formatMoney(remaining)}
-                </strong>
-              </div>
-            </div>
-
-            <div className="overall-progress">
-              <div className="overall-progress-header">
-                <span>
-                  Budget Utilization
-                </span>
-
-                <strong>
-                  {usedPercentage}%
-                </strong>
-              </div>
-
-              <div className="budget-progress large">
-                <div
-                  className="budget-progress-fill"
-                  style={{
-                    width: `${usedPercentage}%`,
-                  }}
-                ></div>
-              </div>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr><th>Account</th><th>Balance</th></tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="2" className="empty-state">Loading...</td></tr>
+                  ) : (
+                    <>
+                      {bsData?.liabilities?.map((l) => (
+                        <tr key={l.account_id}><td>{l.name}</td><td>{formatMoney(l.balance)}</td></tr>
+                      ))}
+                      {bsData?.equity?.map((e) => (
+                        <tr key={e.account_id}><td>{e.name}</td><td>{formatMoney(e.balance)}</td></tr>
+                      ))}
+                      {bsData?.retained_earnings !== undefined && (
+                        <tr><td><em>Retained Earnings</em></td><td>{formatMoney(bsData.retained_earnings)}</td></tr>
+                      )}
+                    </>
+                  )}
+                </tbody>
+                {bsData && (
+                  <tfoot>
+                    <tr><th>Total Liabilities & Equity</th><th>{formatMoney(bsData.total_liabilities_and_equity)}</th></tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
         </div>
       )}
 
-      {/* DEPARTMENT CARDS */}
+      {/* ── 4. PROFIT & LOSS ────────────────────────────────────────────── */}
+      {reportType === "profit-loss" && (
+        <div className="budget-report-grid">
+          <div className="module-card">
+            <div className="panel-header">
+              <h3>Income</h3>
+            </div>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="2" className="empty-state">Loading...</td></tr>
+                  ) : plData?.income?.length > 0 ? (
+                    plData.income.map((i) => (
+                      <tr key={i.account_id}><td>{i.name}</td><td>{formatMoney(i.amount)}</td></tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan="2" className="empty-state">No income recorded</td></tr>
+                  )}
+                </tbody>
+                {plData && <tfoot><tr><th>Total Income</th><th>{formatMoney(plData.total_income)}</th></tr></tfoot>}
+              </table>
+            </div>
+          </div>
 
-      <div className="budget-department-section">
-        <div className="panel-header">
-          <div>
-            <h3>Department-wise Budget</h3>
-
-            <p>
-              Budget utilization by department
-            </p>
+          <div className="module-card">
+            <div className="panel-header">
+              <h3>Expenses & Net Profit</h3>
+            </div>
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead><tr><th>Account</th><th>Amount</th></tr></thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan="2" className="empty-state">Loading...</td></tr>
+                  ) : plData?.expenses?.length > 0 ? (
+                    plData.expenses.map((e) => (
+                      <tr key={e.account_id}><td>{e.name}</td><td>{formatMoney(e.amount)}</td></tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan="2" className="empty-state">No expenses recorded</td></tr>
+                  )}
+                </tbody>
+                {plData && (
+                  <tfoot>
+                    <tr><th>Total Expenses</th><th>{formatMoney(plData.total_expenses)}</th></tr>
+                    <tr><th>Net Profit / Loss</th><th style={{ color: Number(plData.net_profit || 0) >= 0 ? "#16a34a" : "#dc2626" }}>{formatMoney(plData.net_profit)}</th></tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
           </div>
         </div>
-
-        <div className="budget-department-grid">
-          {filteredReports.map((report) => {
-            const percentage = getPercentage(
-              report.used,
-              report.revised
-            );
-
-            return (
-              <div
-                className="budget-department-card"
-                key={report.id}
-              >
-                <div className="budget-department-top">
-                  <div className="department-icon">
-                    {report.department
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
-
-                  <div>
-                    <strong>
-                      {report.department}
-                    </strong>
-
-                    <span>
-                      Revised:{" "}
-                      {formatMoney(report.revised)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="department-amount">
-                  {formatMoney(report.used)}
-                </div>
-
-                <div className="budget-progress">
-                  <div
-                    className="budget-progress-fill"
-                    style={{
-                      width: `${percentage}%`,
-                    }}
-                  ></div>
-                </div>
-
-                <div className="department-footer">
-                  <span>
-                    {percentage}% used
-                  </span>
-
-                  <span>
-                    Remaining:{" "}
-                    {formatMoney(
-                      report.revised -
-                        report.used
-                    )}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

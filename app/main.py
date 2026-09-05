@@ -8,6 +8,14 @@ from app.api.products import router as products_router
 from app.api.accounts import router as accounts_router
 from app.api.journals import router as journals_router
 from app.api.journal_entries import router as journal_entries_router
+from app.api.sales import router as sales_router
+from app.api.purchases import router as purchases_router
+from app.api.invoices import router as invoices_router
+from app.api.payments import router as payments_router
+from app.api.analytic_accounts import router as analytic_accounts_router
+from app.api.budgets import router as budgets_router
+from app.api.reports import router as reports_router
+from app.api.dashboard import router as dashboard_router
 
 
 app = FastAPI(
@@ -37,9 +45,25 @@ app.include_router(products_router, prefix="/products", include_in_schema=False)
 app.include_router(accounts_router, prefix="/api")
 app.include_router(accounts_router, prefix="", include_in_schema=False)
 app.include_router(journals_router, prefix="/api")
-app.include_router(journals_router, prefix="", include_in_schema=False)
+app.include_router(journals_router, prefix="")
 app.include_router(journal_entries_router, prefix="/api")
-app.include_router(journal_entries_router, prefix="", include_in_schema=False)
+app.include_router(journal_entries_router, prefix="")
+app.include_router(sales_router, prefix="/api")
+app.include_router(sales_router, prefix="", include_in_schema=False)
+app.include_router(purchases_router, prefix="/api")
+app.include_router(purchases_router, prefix="", include_in_schema=False)
+app.include_router(invoices_router, prefix="/api")
+app.include_router(invoices_router, prefix="", include_in_schema=False)
+app.include_router(payments_router, prefix="/api")
+app.include_router(payments_router, prefix="", include_in_schema=False)
+app.include_router(analytic_accounts_router, prefix="/api")
+app.include_router(analytic_accounts_router, prefix="", include_in_schema=False)
+app.include_router(budgets_router, prefix="/api")
+app.include_router(budgets_router, prefix="", include_in_schema=False)
+app.include_router(reports_router, prefix="/api")
+app.include_router(reports_router, prefix="", include_in_schema=False)
+app.include_router(dashboard_router, prefix="/api")
+app.include_router(dashboard_router, prefix="", include_in_schema=False)
 
 
 @app.get("/")

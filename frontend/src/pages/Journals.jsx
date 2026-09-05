@@ -1,51 +1,53 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getJournals, getAccounts, createJournal, deleteJournal as deleteJournalApi } from "../lib/api.js";
+import Alert from "../components/ui/Alert.jsx";
 
 function Journals() {
-  const [journals, setJournals] = useState([
-    {
-      id: 1,
-      code: "SALES",
-      name: "Sales Journal",
-      type: "Sales",
-      shortCode: "SAL",
-      status: "Active",
-    },
-    {
-      id: 2,
-      code: "PURCHASE",
-      name: "Purchase Journal",
-      type: "Purchase",
-      shortCode: "PUR",
-      status: "Active",
-    },
-    {
-      id: 3,
-      code: "CASH",
-      name: "Cash Journal",
-      type: "Cash",
-      shortCode: "CSH",
-      status: "Active",
-    },
-    {
-      id: 4,
-      code: "BANK",
-      name: "Bank Journal",
-      type: "Bank",
-      shortCode: "BNK",
-      status: "Active",
-    },
-  ]);
-
+  const [journals, setJournals] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
-    code: "",
     name: "",
     type: "Sales",
     shortCode: "",
+    defaultDebitAccountId: "",
+    defaultCreditAccountId: "",
     status: "Active",
   });
+
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [jData, aData] = await Promise.all([
+        getJournals(),
+        getAccounts(),
+      ]);
+      const mapped = (jData || []).map((j) => ({
+        id: j.id,
+        code: j.journal_type ? j.journal_type.toUpperCase() : "GEN",
+        name: j.journal_name || "",
+        type: j.journal_type || "Sales",
+        shortCode: (j.journal_name || "").slice(0, 3).toUpperCase(),
+        status: j.is_active ? "Active" : "Inactive",
+      }));
+      setJournals(mapped);
+      setAccounts(aData || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const filteredJournals = journals.filter(
     (journal) =>
@@ -60,41 +62,64 @@ function Journals() {
     });
   };
 
-  const addJournal = (e) => {
+  const addJournal = async (e) => {
     e.preventDefault();
 
-    if (!form.code.trim() || !form.name.trim()) {
-      alert("Please enter Journal Code and Journal Name");
+    if (!form.name.trim()) {
+      alert("Please enter Journal Name");
       return;
     }
 
-    const newJournal = {
-      id: Date.now(),
-      ...form,
-    };
+    let debitId = form.defaultDebitAccountId ? Number(form.defaultDebitAccountId) : accounts[0]?.id;
+    let creditId = form.defaultCreditAccountId ? Number(form.defaultCreditAccountId) : accounts[1]?.id || accounts[0]?.id;
 
-    setJournals([...journals, newJournal]);
+    if (!debitId || !creditId) {
+      alert("Please ensure default debit and credit accounts exist in Chart of Accounts first.");
+      return;
+    }
 
-    setForm({
-      code: "",
-      name: "",
-      type: "Sales",
-      shortCode: "",
-      status: "Active",
-    });
+    setSubmitting(true);
+    try {
+      await createJournal({
+        journal_name: form.name.trim(),
+        journal_type: form.type,
+        default_debit_account_id: debitId,
+        default_credit_account_id: creditId,
+        is_active: form.status === "Active",
+      });
 
-    setShowForm(false);
+      setForm({
+        name: "",
+        type: "Sales",
+        shortCode: "",
+        defaultDebitAccountId: "",
+        defaultCreditAccountId: "",
+        status: "Active",
+      });
+
+      setShowForm(false);
+      await loadData();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const deleteJournal = (id) => {
-    setJournals(
-      journals.filter((journal) => journal.id !== id)
-    );
+  const deleteJournal = async (id) => {
+    const confirmDelete = window.confirm("Are you sure you want to delete this journal?");
+    if (!confirmDelete) return;
+
+    try {
+      await deleteJournalApi(id);
+      setJournals(journals.filter((journal) => journal.id !== id));
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return (
     <div className="module-page">
-
       {/* PAGE HEADER */}
       <div className="page-header">
         <div>
@@ -112,6 +137,8 @@ function Journals() {
           + Add Journal
         </button>
       </div>
+
+      {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
       {/* TOOLBAR */}
       <div className="module-toolbar">
@@ -132,7 +159,6 @@ function Journals() {
       <div className="module-card">
         <div className="table-wrapper">
           <table className="data-table">
-
             <thead>
               <tr>
                 <th>Code</th>
@@ -145,10 +171,15 @@ function Journals() {
             </thead>
 
             <tbody>
-              {filteredJournals.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="6" className="empty-state">
+                    Loading journals...
+                  </td>
+                </tr>
+              ) : filteredJournals.length > 0 ? (
                 filteredJournals.map((journal) => (
                   <tr key={journal.id}>
-
                     <td>
                       <strong>{journal.code}</strong>
                     </td>
@@ -185,7 +216,6 @@ function Journals() {
                         Delete
                       </button>
                     </td>
-
                   </tr>
                 ))
               ) : (
@@ -199,7 +229,6 @@ function Journals() {
                 </tr>
               )}
             </tbody>
-
           </table>
         </div>
       </div>
@@ -214,7 +243,6 @@ function Journals() {
             className="modal-box"
             onClick={(e) => e.stopPropagation()}
           >
-
             <div className="modal-header">
               <h2>Add Journal</h2>
 
@@ -227,98 +255,95 @@ function Journals() {
             </div>
 
             <form onSubmit={addJournal}>
-
               <div className="form-grid">
-
                 <div className="form-group">
-                  <label>Journal Code</label>
-
-                  <input
-                    name="code"
-                    value={form.code}
-                    onChange={handleChange}
-                    placeholder="Example: SALES"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Journal Name</label>
-
+                  <label>Journal Name *</label>
                   <input
                     name="name"
                     value={form.name}
                     onChange={handleChange}
                     placeholder="Example: Sales Journal"
+                    required
                   />
                 </div>
 
                 <div className="form-group">
                   <label>Journal Type</label>
-
                   <select
                     name="type"
                     value={form.type}
                     onChange={handleChange}
                   >
-                    <option>Sales</option>
-                    <option>Purchase</option>
-                    <option>Cash</option>
-                    <option>Bank</option>
-                    <option>General</option>
+                    <option value="Sales">Sales</option>
+                    <option value="Purchase">Purchase</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank">Bank</option>
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Short Code</label>
-
-                  <input
-                    name="shortCode"
-                    value={form.shortCode}
+                  <label>Default Debit Account</label>
+                  <select
+                    name="defaultDebitAccountId"
+                    value={form.defaultDebitAccountId}
                     onChange={handleChange}
-                    placeholder="Example: SAL"
-                  />
+                  >
+                    <option value="">— Select Account —</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.code} - {a.name || a.account_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Default Credit Account</label>
+                  <select
+                    name="defaultCreditAccountId"
+                    value={form.defaultCreditAccountId}
+                    onChange={handleChange}
+                  >
+                    <option value="">— Select Account —</option>
+                    {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.code} - {a.name || a.account_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="form-group">
                   <label>Status</label>
-
                   <select
                     name="status"
                     value={form.status}
                     onChange={handleChange}
                   >
-                    <option>Active</option>
-                    <option>Inactive</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
-
               </div>
 
               <div className="form-actions">
-
                 <button
                   type="button"
                   className="secondary-btn"
                   onClick={() => setShowForm(false)}
+                  disabled={submitting}
                 >
                   Cancel
                 </button>
 
-                <button
-                  type="submit"
-                  className="primary-btn"
-                >
-                  Save Journal
+                <button type="submit" className="primary-btn" disabled={submitting}>
+                  {submitting ? "Saving..." : "Save Journal"}
                 </button>
-
               </div>
-
             </form>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
