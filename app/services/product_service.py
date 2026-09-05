@@ -39,6 +39,8 @@ def create_product(db: Session, product_data: ProductCreate) -> Product:
         description=product_data.description.strip() if product_data.description else None,
         category=product_data.category.strip() if product_data.category else None,
         unit=product_data.unit.strip() if product_data.unit else "Unit",
+        type=product_data.type if product_data.type else "Goods",
+        image_url=product_data.image_url if product_data.image_url else None,
         sale_price=product_data.sale_price,
         sales_price=product_data.sale_price,  # legacy compatibility
         purchase_price=product_data.purchase_price,
@@ -138,6 +140,12 @@ def update_product(
 
     if "unit" in update_dict and update_dict["unit"]:
         product.unit = update_dict["unit"].strip()
+
+    if "type" in update_dict and update_dict["type"]:
+        product.type = update_dict["type"].strip()
+
+    if "image_url" in update_dict:
+        product.image_url = update_dict["image_url"]
 
     if "sale_price" in update_dict and update_dict["sale_price"] is not None:
         product.sale_price = update_dict["sale_price"]

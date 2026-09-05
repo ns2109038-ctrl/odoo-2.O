@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getProducts, createProduct, updateProduct, deleteProduct as deleteProductApi } from "../lib/api.js";
 import Alert from "../components/ui/Alert.jsx";
 
 function Products() {
-  const [view, setView] = useState("list");
+  const [view, setView] = useState("kanban");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editProductObj, setEditProductObj] = useState(null);
@@ -12,15 +12,22 @@ function Products() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Category creation
+  const [isNewCategory, setIsNewCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
+  const fileInputRef = useRef(null);
+
   const [form, setForm] = useState({
     name: "",
     code: "",
     category: "Furniture",
     type: "Goods",
     salesPrice: "",
-    purchasePrice: "",
+    costPrice: "",
     stock: "",
     status: "Active",
+    image_url: "",
   });
 
   const loadProducts = async () => {
@@ -33,11 +40,12 @@ function Products() {
         name: p.name,
         code: p.sku || "",
         category: p.category || "Furniture",
-        type: p.unit === "Service" ? "Service" : "Goods",
+        type: p.type || (p.unit === "Service" ? "Service" : "Goods"),
         salesPrice: Number(p.sale_price || 0),
-        purchasePrice: Number(p.purchase_price || 0),
+        costPrice: Number(p.purchase_price || 0),
         stock: 0,
         status: p.is_active ? "Active" : "Inactive",
+        image_url: p.image_url || "",
       }));
       setProducts(mapped);
     } catch (err) {
@@ -51,24 +59,43 @@ function Products() {
     loadProducts();
   }, []);
 
+  const categories = Array.from(
+    new Set([
+      "Furniture",
+      "Lighting",
+      "Electronics",
+      "Hardware",
+      "Office",
+      "Decor",
+      ...products.map((p) => p.category).filter(Boolean),
+    ])
+  );
+
   const filteredProducts = products.filter((product) =>
-    `${product.name} ${product.code} ${product.category}`
+    `${product.name} ${product.code} ${product.category} ${product.type}`
       .toLowerCase()
       .includes(search.toLowerCase())
   );
+
+  const generateSku = () => {
+    return "PRD-" + Math.random().toString(36).substring(2, 7).toUpperCase();
+  };
 
   const openAddModal = () => {
     setEditProductObj(null);
     setForm({
       name: "",
-      code: "",
+      code: generateSku(),
       category: "Furniture",
       type: "Goods",
       salesPrice: "",
-      purchasePrice: "",
+      costPrice: "",
       stock: "",
       status: "Active",
+      image_url: "",
     });
+    setIsNewCategory(false);
+    setNewCategoryName("");
     setShowModal(true);
   };
 
@@ -78,39 +105,120 @@ function Products() {
       name: product.name,
       code: product.code,
       category: product.category,
-      type: product.type,
+      type: product.type || "Goods",
       salesPrice: product.salesPrice,
-      purchasePrice: product.purchasePrice,
+      costPrice: product.costPrice,
       stock: product.stock,
       status: product.status,
+      image_url: product.image_url || "",
     });
+    setIsNewCategory(false);
+    setNewCategoryName("");
     setShowModal(true);
   };
 
-  const handleChange = (e) => {
+  const handleNewAction = () => {
+    setEditProductObj(null);
     setForm({
-      ...form,
-      [e.target.name]: e.target.value,
+      name: "",
+      code: generateSku(),
+      category: "Furniture",
+      type: "Goods",
+      salesPrice: "",
+      costPrice: "",
+      stock: "",
+      status: "Active",
+      image_url: "",
     });
+    setIsNewCategory(false);
+    setNewCategoryName("");
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "category") {
+      if (value === "__create_new__") {
+        setIsNewCategory(true);
+        setNewCategoryName("");
+        return;
+      }
+      setIsNewCategory(false);
+    }
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  // Image compression & upload handler
+  const processImageFile = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload an image file (PNG, JPG, WEBP)");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX = 600;
+        let w = img.width;
+        let h = img.height;
+        if (w > h && w > MAX) {
+          h = Math.round((h * MAX) / w);
+          w = MAX;
+        } else if (h > MAX) {
+          w = Math.round((w * MAX) / h);
+          h = MAX;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        setForm((prev) => ({ ...prev, image_url: dataUrl }));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) processImageFile(file);
+  };
+
+  const handleRemoveImage = (e) => {
+    e.stopPropagation();
+    setForm((prev) => ({ ...prev, image_url: "" }));
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const saveProduct = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
 
-    if (!form.name.trim() || !form.code.trim()) {
-      alert("Please enter Product Name and Product Code");
+    if (!form.name.trim()) {
+      alert("Please enter Product Name");
       return;
     }
+
+    const finalCategory = isNewCategory
+      ? (newCategoryName.trim() || "Furniture")
+      : (form.category.trim() || "Furniture");
 
     setSubmitting(true);
     try {
       const payload = {
         name: form.name.trim(),
-        sku: form.code.trim(),
-        category: form.category,
+        sku: form.code.trim() || generateSku(),
+        category: finalCategory,
+        type: form.type,
         unit: form.type === "Service" ? "Service" : "Unit",
+        image_url: form.image_url || null,
         sale_price: form.salesPrice ? Number(form.salesPrice) : 0,
-        purchase_price: form.purchasePrice ? Number(form.purchasePrice) : 0,
+        purchase_price: form.costPrice ? Number(form.costPrice) : 0,
         is_active: form.status === "Active",
       };
 
@@ -206,7 +314,7 @@ function Products() {
                   <th>Category</th>
                   <th>Type</th>
                   <th>Sales Price</th>
-                  <th>Purchase Price</th>
+                  <th>Cost</th>
                   <th>Stock</th>
                   <th>Status</th>
                   <th>Action</th>
@@ -225,10 +333,18 @@ function Products() {
                     <tr key={product.id}>
                       <td>
                         <div className="product-cell">
-                          <div className="product-icon">📦</div>
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              className="product-table-img"
+                            />
+                          ) : (
+                            <div className="product-icon">📦</div>
+                          )}
                           <div>
                             <b>{product.name}</b>
-                            <small>Product</small>
+                            <small>{product.type || "Goods"}</small>
                           </div>
                         </div>
                       </td>
@@ -248,7 +364,7 @@ function Products() {
                       </td>
 
                       <td>
-                        ₹{product.purchasePrice.toLocaleString("en-IN")}
+                        ₹{product.costPrice.toLocaleString("en-IN")}
                       </td>
 
                       <td>{product.stock}</td>
@@ -315,11 +431,27 @@ function Products() {
                   {product.status}
                 </span>
 
-                <div className="product-card-icon">📦</div>
+                <span className="product-card-badge-type">
+                  {product.type}
+                </span>
+              </div>
+
+              {/* Product Image preview in card */}
+              <div className="product-card-media">
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    className="product-card-img"
+                  />
+                ) : (
+                  <div className="product-card-no-img">
+                    <span className="product-icon-box">📦</span>
+                  </div>
+                )}
               </div>
 
               <h3>{product.name}</h3>
-
               <p className="product-card-code">{product.code}</p>
 
               <div className="product-info">
@@ -341,8 +473,10 @@ function Products() {
                 </div>
 
                 <div>
-                  <span>Stock</span>
-                  <strong>{product.stock}</strong>
+                  <span>Cost</span>
+                  <strong>
+                    ₹{product.costPrice.toLocaleString("en-IN")}
+                  </strong>
                 </div>
               </div>
 
@@ -375,140 +509,253 @@ function Products() {
         </div>
       )}
 
-      {/* MODAL */}
+      {/* PRODUCT MASTER FORM MODAL (Matches Mockup) */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="product-modal">
-            <div className="modal-header">
-              <div>
-                <h2>
-                  {!editProductObj ? "Create Product" : "Edit Product"}
-                </h2>
-                <p>Enter product information</p>
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div
+            className="product-modal product-master-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Bar matching mockup: New, Confirm, Back */}
+            <div className="product-master-topbar">
+              <div className="product-master-buttons-left">
+                <button
+                  type="button"
+                  className="pm-btn pm-btn-new"
+                  onClick={handleNewAction}
+                >
+                  New
+                </button>
+
+                <button
+                  type="button"
+                  className="pm-btn pm-btn-confirm"
+                  onClick={saveProduct}
+                  disabled={submitting}
+                >
+                  {submitting ? "Saving..." : "Confirm"}
+                </button>
               </div>
 
-              <button
-                className="close-modal"
-                onClick={() => setShowModal(false)}
-              >
-                ×
-              </button>
+              <div className="product-master-title">
+                Product Master Form View
+              </div>
+
+              <div className="product-master-buttons-right">
+                <button
+                  type="button"
+                  className="pm-btn pm-btn-back"
+                  onClick={() => setShowModal(false)}
+                >
+                  Back
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={saveProduct}>
-              <div className="form-section">
-                <h3>Basic Information</h3>
+            <form onSubmit={saveProduct} className="product-master-form">
+              {/* Product Name */}
+              <div className="pm-field-row">
+                <label className="pm-label">Product Name *</label>
+                <div className="pm-input-wrap">
+                  <input
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="e.g. Ergonomic Office Desk"
+                    className="pm-input pm-input-underline"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
 
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Product Name *</label>
-                    <input
-                      name="name"
-                      value={form.name}
+              {/* Product Type dropdown: Goods, Service, Combo */}
+              <div className="pm-field-row">
+                <label className="pm-label">Product Type</label>
+                <div className="pm-input-wrap">
+                  <select
+                    name="type"
+                    value={form.type}
+                    onChange={handleChange}
+                    className="pm-select pm-select-underline"
+                  >
+                    <option value="Goods">Goods</option>
+                    <option value="Service">Service</option>
+                    <option value="Combo">Combo</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Category: Selection / Many2one field */}
+              <div className="pm-field-row">
+                <label className="pm-label">Category</label>
+                <div className="pm-input-wrap">
+                  {!isNewCategory ? (
+                    <select
+                      name="category"
+                      value={form.category}
                       onChange={handleChange}
-                      placeholder="Enter product name"
-                      required
-                    />
+                      className="pm-select pm-select-underline"
+                    >
+                      {categories.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                      <option value="__create_new__">
+                        + Create New Category...
+                      </option>
+                    </select>
+                  ) : (
+                    <div className="pm-new-category-box">
+                      <input
+                        type="text"
+                        placeholder="Enter new category name"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        className="pm-input pm-input-underline"
+                      />
+                      <button
+                        type="button"
+                        className="pm-btn-cancel-category"
+                        onClick={() => setIsNewCategory(false)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lower Section: Upload Image on Left, Price / Cost / SKU on Right */}
+              <div className="pm-lower-grid">
+                {/* Image Upload Box */}
+                <div className="pm-image-column">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                    style={{ display: "none" }}
+                    onChange={handleFileInputChange}
+                  />
+
+                  <div
+                    className={`pm-image-upload-box ${
+                      form.image_url ? "has-image" : ""
+                    }`}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {form.image_url ? (
+                      <div className="pm-image-preview-wrapper">
+                        <img
+                          src={form.image_url}
+                          alt="Uploaded product preview"
+                          className="pm-image-preview"
+                        />
+                        <div className="pm-image-hover-overlay">
+                          <span>Click to change</span>
+                          <button
+                            type="button"
+                            className="pm-image-remove-btn"
+                            onClick={handleRemoveImage}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="pm-upload-prompt">
+                        <div className="pm-upload-icon">📷</div>
+                        <span className="pm-upload-title">Upload Image</span>
+                        <span className="pm-upload-hint">
+                          Click or drag image here
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pricing & Code Column */}
+                <div className="pm-pricing-column">
+                  {/* Sales Price */}
+                  <div className="pm-field-row-compact">
+                    <label className="pm-label">Sales Price</label>
+                    <div className="pm-currency-input">
+                      <span className="pm-currency-prefix">Rs.</span>
+                      <input
+                        type="number"
+                        name="salesPrice"
+                        value={form.salesPrice}
+                        onChange={handleChange}
+                        placeholder="100.00"
+                        min="0"
+                        step="any"
+                        className="pm-input pm-input-underline"
+                      />
+                    </div>
                   </div>
 
-                  <div className="form-group">
-                    <label>Product Code *</label>
+                  {/* Cost */}
+                  <div className="pm-field-row-compact">
+                    <label className="pm-label">Cost</label>
+                    <div className="pm-currency-input">
+                      <span className="pm-currency-prefix">Rs.</span>
+                      <input
+                        type="number"
+                        name="costPrice"
+                        value={form.costPrice}
+                        onChange={handleChange}
+                        placeholder="50.00"
+                        min="0"
+                        step="any"
+                        className="pm-input pm-input-underline"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Product Code */}
+                  <div className="pm-field-row-compact">
+                    <label className="pm-label">Product Code (SKU)</label>
                     <input
                       name="code"
                       value={form.code}
                       onChange={handleChange}
                       placeholder="PRD-001"
-                      required
+                      className="pm-input pm-input-underline"
                     />
                   </div>
 
-                  <div className="form-group">
-                    <label>Category</label>
-                    <select
-                      name="category"
-                      value={form.category}
-                      onChange={handleChange}
-                    >
-                      <option>Furniture</option>
-                      <option>Lighting</option>
-                      <option>Electronics</option>
-                      <option>Hardware</option>
-                      <option>Other</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Product Type</label>
-                    <select
-                      name="type"
-                      value={form.type}
-                      onChange={handleChange}
-                    >
-                      <option>Goods</option>
-                      <option>Service</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <h3>Pricing & Inventory</h3>
-
-                <div className="form-grid">
-                  <div className="form-group">
-                    <label>Sales Price</label>
-                    <input
-                      type="number"
-                      name="salesPrice"
-                      value={form.salesPrice}
-                      onChange={handleChange}
-                      placeholder="0"
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Purchase Price</label>
-                    <input
-                      type="number"
-                      name="purchasePrice"
-                      value={form.purchasePrice}
-                      onChange={handleChange}
-                      placeholder="0"
-                      min="0"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Status</label>
+                  {/* Status */}
+                  <div className="pm-field-row-compact">
+                    <label className="pm-label">Status</label>
                     <select
                       name="status"
                       value={form.status}
                       onChange={handleChange}
+                      className="pm-select pm-select-underline"
                     >
-                      <option>Active</option>
-                      <option>Inactive</option>
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
                     </select>
                   </div>
                 </div>
               </div>
 
-              <div className="modal-actions">
+              {/* Bottom Actions for mobile / backup */}
+              <div className="pm-footer-actions">
                 <button
                   type="button"
                   className="secondary-btn"
                   onClick={() => setShowModal(false)}
-                  disabled={submitting}
                 >
                   Cancel
                 </button>
-
-                <button type="submit" className="primary-btn" disabled={submitting}>
-                  {submitting
-                    ? "Saving..."
-                    : !editProductObj
-                    ? "Save Product"
-                    : "Update Product"}
+                <button
+                  type="submit"
+                  className="primary-btn"
+                  disabled={submitting}
+                >
+                  {submitting ? "Saving..." : "Save Product"}
                 </button>
               </div>
             </form>

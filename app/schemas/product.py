@@ -10,6 +10,8 @@ class ProductBase(BaseModel):
     description: Optional[str] = Field(None, description="Product description")
     category: Optional[str] = Field(None, max_length=100, description="Category (e.g. Chairs, Tables, Sofas)")
     unit: str = Field(default="Unit", max_length=50, description="Unit of measure (e.g. Unit, Piece, Set)")
+    type: Optional[str] = Field(default="Goods", max_length=50, description="Product Type (Goods, Service, Combo)")
+    image_url: Optional[str] = Field(None, description="Product image URL or data URI")
     sale_price: Decimal = Field(default=Decimal("0.00"), ge=0, description="Sale price (must be >= 0)")
     purchase_price: Decimal = Field(default=Decimal("0.00"), ge=0, description="Purchase price (must be >= 0)")
     tax_rate: Decimal = Field(default=Decimal("0.00"), ge=0, description="Tax rate percentage (must be >= 0)")
@@ -36,6 +38,8 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     category: Optional[str] = Field(None, max_length=100)
     unit: Optional[str] = Field(None, max_length=50)
+    type: Optional[str] = Field(None, max_length=50)
+    image_url: Optional[str] = None
     sale_price: Optional[Decimal] = Field(None, ge=0)
     purchase_price: Optional[Decimal] = Field(None, ge=0)
     tax_rate: Optional[Decimal] = Field(None, ge=0)
@@ -65,6 +69,8 @@ class ProductResponse(BaseModel):
     description: Optional[str] = None
     category: Optional[str] = None
     unit: str
+    type: Optional[str] = "Goods"
+    image_url: Optional[str] = None
     sale_price: Decimal
     purchase_price: Decimal
     tax_rate: Decimal

@@ -20,6 +20,7 @@ class Product(Base):
     purchase_price = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
     tax_rate = Column(Numeric(5, 2), nullable=False, default=Decimal("0.00"))
     type = Column(String(50), nullable=True, default="Goods")  # legacy compatibility
+    image_url = Column(Text, nullable=True)
     inventory_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     income_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
     expense_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
