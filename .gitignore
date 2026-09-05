@@ -1,8 +1,9 @@
 venv/
 .env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 *.db
-*.sqlite3.env
-.env.*
-!.env.example
+*.sqlite3
+node_modules/
