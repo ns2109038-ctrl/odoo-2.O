@@ -28,7 +28,7 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid login ID or password",
+            detail="Invalid Login ID or Password",
         )
     token = create_access_token(user.id, user.role)
     return {"access_token": token, "token_type": "bearer"}
