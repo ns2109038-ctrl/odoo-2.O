@@ -1033,3 +1033,99 @@ td b {
     grid-template-columns: 1fr;
   }
 }
+/* ================= CHART OF ACCOUNTS ================= */
+
+.account-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.account-summary-card {
+  background: white;
+  border: 1px solid #e3e9f1;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.account-summary-card span {
+  display: block;
+  color: #8792a3;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+
+.account-summary-card strong {
+  font-size: 21px;
+  color: #1c2940;
+}
+
+.account-code {
+  background: #f1f4f8;
+  color: #59677b;
+  padding: 6px 9px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.account-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #edf4ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-type {
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.account-type.assets {
+  background: #e9f2ff;
+  color: #2169d7;
+}
+
+.account-type.liabilities {
+  background: #fff0e8;
+  color: #d86d27;
+}
+
+.account-type.equity {
+  background: #eeeaff;
+  color: #7251cf;
+}
+
+.account-type.income {
+  background: #e8f8ef;
+  color: #159657;
+}
+
+.account-type.expenses {
+  background: #fff1f1;
+  color: #d95353;
+}
+
+@media (max-width: 1000px) {
+  .account-summary {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 650px) {
+  .account-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+}

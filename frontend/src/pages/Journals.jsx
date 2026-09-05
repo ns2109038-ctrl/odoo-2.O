@@ -1,42 +1,38 @@
 import { useState } from "react";
 
-function Contacts() {
-  const [contacts, setContacts] = useState([
+function Journals() {
+  const [journals, setJournals] = useState([
     {
       id: 1,
-      name: "ABC Furniture",
-      type: "Customer",
-      email: "abc@example.com",
-      phone: "+91 98765 43210",
-      city: "Ahmedabad",
+      code: "SALES",
+      name: "Sales Journal",
+      type: "Sales",
+      shortCode: "SAL",
       status: "Active",
     },
     {
       id: 2,
-      name: "Wood Suppliers Ltd.",
-      type: "Vendor",
-      email: "wood@example.com",
-      phone: "+91 98250 12345",
-      city: "Surat",
+      code: "PURCHASE",
+      name: "Purchase Journal",
+      type: "Purchase",
+      shortCode: "PUR",
       status: "Active",
     },
     {
       id: 3,
-      name: "Modern Interiors",
-      type: "Customer",
-      email: "modern@example.com",
-      phone: "+91 99123 45678",
-      city: "Mumbai",
+      code: "CASH",
+      name: "Cash Journal",
+      type: "Cash",
+      shortCode: "CSH",
       status: "Active",
     },
     {
       id: 4,
-      name: "Steel & Hardware",
-      type: "Vendor",
-      email: "steel@example.com",
-      phone: "+91 98980 56789",
-      city: "Vadodara",
-      status: "Inactive",
+      code: "BANK",
+      name: "Bank Journal",
+      type: "Bank",
+      shortCode: "BNK",
+      status: "Active",
     },
   ]);
 
@@ -44,16 +40,17 @@ function Contacts() {
   const [showForm, setShowForm] = useState(false);
 
   const [form, setForm] = useState({
+    code: "",
     name: "",
-    type: "Customer",
-    email: "",
-    phone: "",
-    city: "",
+    type: "Sales",
+    shortCode: "",
     status: "Active",
   });
 
-  const filteredContacts = contacts.filter((contact) =>
-    contact.name.toLowerCase().includes(search.toLowerCase())
+  const filteredJournals = journals.filter(
+    (journal) =>
+      journal.name.toLowerCase().includes(search.toLowerCase()) ||
+      journal.code.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleChange = (e) => {
@@ -63,135 +60,151 @@ function Contacts() {
     });
   };
 
-  const addContact = (e) => {
+  const addJournal = (e) => {
     e.preventDefault();
 
-    if (!form.name.trim()) {
-      alert("Please enter contact name");
+    if (!form.code.trim() || !form.name.trim()) {
+      alert("Please enter Journal Code and Journal Name");
       return;
     }
 
-    const newContact = {
+    const newJournal = {
       id: Date.now(),
       ...form,
     };
 
-    setContacts([...contacts, newContact]);
+    setJournals([...journals, newJournal]);
 
     setForm({
+      code: "",
       name: "",
-      type: "Customer",
-      email: "",
-      phone: "",
-      city: "",
+      type: "Sales",
+      shortCode: "",
       status: "Active",
     });
 
     setShowForm(false);
   };
 
-  const deleteContact = (id) => {
-    setContacts(contacts.filter((contact) => contact.id !== id));
+  const deleteJournal = (id) => {
+    setJournals(
+      journals.filter((journal) => journal.id !== id)
+    );
   };
 
   return (
     <div className="module-page">
+
+      {/* PAGE HEADER */}
       <div className="page-header">
         <div>
-          <h1>Contacts</h1>
-          <p>Manage customers, vendors and other contacts.</p>
+          <h1>Journals</h1>
+          <p>
+            Manage accounting journals for sales, purchases,
+            cash and bank transactions.
+          </p>
         </div>
 
         <button
           className="primary-btn"
           onClick={() => setShowForm(true)}
         >
-          + Add Contact
+          + Add Journal
         </button>
       </div>
 
+      {/* TOOLBAR */}
       <div className="module-toolbar">
         <input
           type="text"
-          placeholder="Search contacts..."
+          placeholder="Search journals..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
 
         <div className="contact-count">
-          Total Contacts: <strong>{filteredContacts.length}</strong>
+          Total Journals:{" "}
+          <strong>{filteredJournals.length}</strong>
         </div>
       </div>
 
+      {/* TABLE */}
       <div className="module-card">
         <div className="table-wrapper">
           <table className="data-table">
+
             <thead>
               <tr>
-                <th>Contact</th>
+                <th>Code</th>
+                <th>Journal Name</th>
                 <th>Type</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>City</th>
+                <th>Short Code</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredContacts.length > 0 ? (
-                filteredContacts.map((contact) => (
-                  <tr key={contact.id}>
+              {filteredJournals.length > 0 ? (
+                filteredJournals.map((journal) => (
+                  <tr key={journal.id}>
+
                     <td>
-                      <strong>{contact.name}</strong>
+                      <strong>{journal.code}</strong>
                     </td>
+
+                    <td>{journal.name}</td>
 
                     <td>
                       <span className="badge blue">
-                        {contact.type}
+                        {journal.type}
                       </span>
                     </td>
 
-                    <td>{contact.email}</td>
-
-                    <td>{contact.phone}</td>
-
-                    <td>{contact.city}</td>
+                    <td>{journal.shortCode}</td>
 
                     <td>
                       <span
                         className={
-                          contact.status === "Active"
+                          journal.status === "Active"
                             ? "badge green"
                             : "badge red"
                         }
                       >
-                        {contact.status}
+                        {journal.status}
                       </span>
                     </td>
 
                     <td>
                       <button
                         className="delete-btn"
-                        onClick={() => deleteContact(contact.id)}
+                        onClick={() =>
+                          deleteJournal(journal.id)
+                        }
                       >
                         Delete
                       </button>
                     </td>
+
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="empty-state">
-                    No contacts found
+                  <td
+                    colSpan="6"
+                    className="empty-state"
+                  >
+                    No journals found
                   </td>
                 </tr>
               )}
             </tbody>
+
           </table>
         </div>
       </div>
 
+      {/* ADD JOURNAL MODAL */}
       {showForm && (
         <div
           className="modal-overlay"
@@ -201,8 +214,9 @@ function Contacts() {
             className="modal-box"
             onClick={(e) => e.stopPropagation()}
           >
+
             <div className="modal-header">
-              <h2>Add Contact</h2>
+              <h2>Add Journal</h2>
 
               <button
                 className="close-btn"
@@ -212,63 +226,62 @@ function Contacts() {
               </button>
             </div>
 
-            <form onSubmit={addContact}>
+            <form onSubmit={addJournal}>
+
               <div className="form-grid">
+
                 <div className="form-group">
-                  <label>Contact Name</label>
+                  <label>Journal Code</label>
+
                   <input
-                    name="name"
-                    value={form.name}
+                    name="code"
+                    value={form.code}
                     onChange={handleChange}
-                    placeholder="Enter contact name"
+                    placeholder="Example: SALES"
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>Contact Type</label>
+                  <label>Journal Name</label>
+
+                  <input
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="Example: Sales Journal"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Journal Type</label>
+
                   <select
                     name="type"
                     value={form.type}
                     onChange={handleChange}
                   >
-                    <option>Customer</option>
-                    <option>Vendor</option>
+                    <option>Sales</option>
+                    <option>Purchase</option>
+                    <option>Cash</option>
+                    <option>Bank</option>
+                    <option>General</option>
                   </select>
                 </div>
 
                 <div className="form-group">
-                  <label>Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="Enter email"
-                  />
-                </div>
+                  <label>Short Code</label>
 
-                <div className="form-group">
-                  <label>Phone</label>
                   <input
-                    name="phone"
-                    value={form.phone}
+                    name="shortCode"
+                    value={form.shortCode}
                     onChange={handleChange}
-                    placeholder="Enter phone"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>City</label>
-                  <input
-                    name="city"
-                    value={form.city}
-                    onChange={handleChange}
-                    placeholder="Enter city"
+                    placeholder="Example: SAL"
                   />
                 </div>
 
                 <div className="form-group">
                   <label>Status</label>
+
                   <select
                     name="status"
                     value={form.status}
@@ -278,9 +291,11 @@ function Contacts() {
                     <option>Inactive</option>
                   </select>
                 </div>
+
               </div>
 
               <div className="form-actions">
+
                 <button
                   type="button"
                   className="secondary-btn"
@@ -289,16 +304,23 @@ function Contacts() {
                   Cancel
                 </button>
 
-                <button type="submit" className="primary-btn">
-                  Save Contact
+                <button
+                  type="submit"
+                  className="primary-btn"
+                >
+                  Save Journal
                 </button>
+
               </div>
+
             </form>
+
           </div>
         </div>
       )}
+
     </div>
   );
 }
 
-export default Contacts;
+export default Journals;
