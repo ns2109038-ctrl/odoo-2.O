@@ -48,6 +48,41 @@ try:
                 role="admin",
                 is_active=True
             ))
+
+        # Seed wireframe master contacts (Open Wood & Joey Wills)
+        from app.models.contact import Contact
+        if not db.query(Contact).filter(Contact.name == "Open Wood").first():
+            db.add(Contact(
+                name="Open Wood",
+                email="Openwood21@example.com",
+                phone="+91 9090090909",
+                address="12 Woodcraft Plaza, Timber Road",
+                city="Mumbai",
+                state="Maharashtra",
+                country="India",
+                pincode="400001",
+                contact_type="customer",
+                type="Customer",
+                is_active=True,
+                profile_image="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='16' fill='%2315803d'/><path d='M50 18 L68 45 L58 45 L74 70 L26 70 L42 45 L32 45 Z' fill='%23ffffff'/><rect x='46' y='70' width='8' height='14' rx='2' fill='%2386efac'/></svg>",
+                tax_id="27AAACW1234F1Z1"
+            ))
+        if not db.query(Contact).filter(Contact.name == "Joey Wills").first():
+            db.add(Contact(
+                name="Joey Wills",
+                email="Joey.wills@example.com",
+                phone="+91 8080080808",
+                address="45 Silicon Avenue, Tech Park",
+                city="Bangalore",
+                state="Karnataka",
+                country="India",
+                pincode="560001",
+                contact_type="customer",
+                type="Customer",
+                is_active=True,
+                profile_image="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'><rect width='100' height='100' rx='16' fill='%230284c7'/><circle cx='50' cy='40' r='22' fill='%23fed7aa'/><path d='M30 32 Q50 18 70 32 Q65 24 50 24 Q35 24 30 32 Z' fill='%2378350f'/><circle cx='42' cy='38' r='3' fill='%231e293b'/><circle cx='58' cy='38' r='3' fill='%231e293b'/><path d='M42 48 Q50 55 58 48' stroke='%23ea580c' stroke-width='2.5' fill='none' stroke-linecap='round'/><path d='M22 88 C25 66 40 64 50 64 C60 64 75 66 78 88 Z' fill='%23f8fafc'/></svg>",
+                tax_id="29AAAPW5678K1Z5"
+            ))
         db.commit()
     except Exception as seed_err:
         db.rollback()

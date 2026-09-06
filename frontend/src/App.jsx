@@ -240,8 +240,8 @@ function App() {
 
   function renderPage() {
     if (activePage === "Dashboard")          return <Dashboard authUser={authUser} onNavigate={handleNavigate} />;
-    if (activePage === "Contacts")           return <Contacts />;
-    if (activePage === "Products")           return <Products />;
+    if (activePage === "Contacts")           return <Contacts onNavigate={handleNavigate} />;
+    if (activePage === "Products")           return <Products onNavigate={handleNavigate} />;
     if (activePage === "Chart of Accounts")  return <Accounts />;
     if (activePage === "Journals")           return <Journals />;
     if (activePage === "Journal Entries")   return <JournalEntries />;

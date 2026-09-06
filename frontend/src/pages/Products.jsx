@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { Plus, Search, ArrowLeft, List, LayoutGrid } from "lucide-react";
 import { getProducts, createProduct, updateProduct, deleteProduct as deleteProductApi } from "../lib/api.js";
 import Alert from "../components/ui/Alert.jsx";
 
-function Products() {
-  const [view, setView] = useState("kanban");
+export default function Products({ onNavigate }) {
+  // Default is LIST view as specified in the Master Data wireframe
+  const [view, setView] = useState("list");
   const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editProductObj, setEditProductObj] = useState(null);
@@ -252,42 +254,151 @@ function Products() {
   return (
     <div className="product-page">
       {/* HEADER */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: "16px" }}>
         <div>
           <p className="breadcrumb">Home / Products</p>
           <h1>Products</h1>
           <p className="subtitle">Manage your products and inventory</p>
         </div>
-
-        <button className="primary-btn" onClick={openAddModal}>
-          + New Product
-        </button>
       </div>
 
       {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
-      {/* TOOLBAR */}
-      <div className="product-toolbar">
-        <input
-          type="text"
-          placeholder="Search product, code or category..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* ── TOP BAR (Arranged in exact wireframe order: [New] | [Search] | [Back] | [List][Kanban]) ── */}
+      <div
+        className="product-topbar"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #cbd5e1",
+          marginBottom: "20px",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* 1. [New] button on the left */}
+        <button
+          type="button"
+          onClick={openAddModal}
+          style={{
+            background: "#0284c7",
+            color: "#ffffff",
+            border: "none",
+            padding: "8px 20px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
+          }}
+        >
+          <Plus size={15} /> New Product
+        </button>
 
-        <div className="product-view-buttons">
+        {/* 2. [Search] input in the middle */}
+        <div style={{ position: "relative", flex: 1, minWidth: "220px", maxWidth: "480px" }}>
+          <Search
+            size={15}
+            style={{
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search product, code or category..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              height: "38px",
+              paddingLeft: "36px",
+              paddingRight: "14px",
+              borderRadius: "8px",
+              border: "1px solid #cbd5e1",
+              outline: "none",
+              fontSize: "13px",
+              background: "#f8fafc",
+            }}
+          />
+        </div>
+
+        {/* 3. [Back] button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onNavigate) onNavigate("Dashboard");
+          }}
+          style={{
+            marginLeft: "auto",
+            background: "#ffffff",
+            border: "1.5px solid #cbd5e1",
+            color: "#334155",
+            padding: "7px 18px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          <ArrowLeft size={14} /> Back
+        </button>
+
+        {/* 4. [List View Icon] and [Kanban View Icon] Switcher on the far right (with red active border) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
           <button
-            className={view === "list" ? "view-active" : ""}
+            type="button"
             onClick={() => setView("list")}
+            title="Switch to List View"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "36px",
+              height: "36px",
+              borderRadius: "6px",
+              border: view === "list" ? "2px solid #ef4444" : "1px solid #cbd5e1",
+              background: view === "list" ? "#ffffff" : "#f8fafc",
+              color: view === "list" ? "#ef4444" : "#64748b",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
           >
-            ☷ List
+            <List size={18} />
           </button>
 
           <button
-            className={view === "kanban" ? "view-active" : ""}
+            type="button"
             onClick={() => setView("kanban")}
+            title="Switch to Kanban View"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "36px",
+              height: "36px",
+              borderRadius: "6px",
+              border: view === "kanban" ? "2px solid #ef4444" : "1px solid #cbd5e1",
+              background: view === "kanban" ? "#ffffff" : "#f8fafc",
+              color: view === "kanban" ? "#ef4444" : "#64748b",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
           >
-            ▦ Kanban
+            <LayoutGrid size={18} />
           </button>
         </div>
       </div>
@@ -765,5 +876,3 @@ function Products() {
     </div>
   );
 }
-
-export default Products;
