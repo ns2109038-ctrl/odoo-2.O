@@ -32,62 +32,179 @@ function networkErr() {
   );
 }
 
+// ── Fast In-Memory Cache & In-Flight Request Deduplication ───────────────────
+const apiCache = new Map();
+const inFlightRequests = new Map();
+const DEFAULT_CACHE_TTL = 90 * 1000; // 90 seconds in-memory freshness
+
 /**
- * Central request wrapper with Authorization header, 401 handling, and 403 handling
+ * Clear the client cache entirely or by matching endpoint substring/resource
+ */
+export function clearApiCache(resourcePrefix = null) {
+  if (!resourcePrefix) {
+    apiCache.clear();
+  } else {
+    const term = resourcePrefix.toLowerCase();
+    for (const key of apiCache.keys()) {
+      if (key.toLowerCase().includes(term)) {
+        apiCache.delete(key);
+      }
+    }
+  }
+}
+
+/**
+ * Central request wrapper with Authorization header, In-Memory Caching, Deduplication,
+ * 401 handling, 403 handling, and timeout safeguards.
  */
 export async function apiRequest(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   const auth = getStoredAuth();
   const token = auth?.token;
+  const method = (options.method || "GET").toUpperCase();
+  const isGet = method === "GET";
 
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
+  // Build cache key for GET requests
+  const cacheKey = isGet ? `${endpoint}__${token || "anon"}` : null;
+
+  // 1. Check in-memory cache for instant 0ms return
+  if (isGet && !options.noCache && cacheKey) {
+    const cached = apiCache.get(cacheKey);
+    if (cached) {
+      const age = Date.now() - cached.timestamp;
+      const ttl = options.ttl || DEFAULT_CACHE_TTL;
+      if (age < ttl) {
+        return cached.data;
+      }
+    }
+  }
+
+  // 2. Deduplicate simultaneous in-flight GET requests
+  if (isGet && cacheKey && inFlightRequests.has(cacheKey)) {
+    return inFlightRequests.get(cacheKey);
+  }
+
+  const executeRequest = async () => {
+    const headers = {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    // AbortController timeout safeguard (8 seconds max)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    let res;
+    try {
+      res = await fetch(url, {
+        ...options,
+        headers,
+        signal: options.signal || controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        // Return stale cached data if available on timeout
+        if (cacheKey && apiCache.has(cacheKey)) {
+          return apiCache.get(cacheKey).data;
+        }
+      }
+      throw networkErr();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (res.status === 401) {
+      clearAuth();
+      clearApiCache();
+      if (typeof window !== "undefined" && !window.location.pathname.includes("login")) {
+        window.dispatchEvent(new CustomEvent("uf:auth-expired"));
+      }
+      const errText = await parseError(res);
+      throw Object.assign(new Error(errText || "Session expired. Please log in again."), { status: 401 });
+    }
+
+    if (res.status === 403) {
+      const errText = await parseError(res);
+      throw Object.assign(new Error(errText || "Permission denied. You do not have access to perform this action."), { status: 403 });
+    }
+
+    if (!res.ok) {
+      const errText = await parseError(res);
+      throw Object.assign(new Error(errText), { status: res.status });
+    }
+
+    if (res.status === 204) {
+      // Invalidate relevant cache on mutations
+      if (!isGet) invalidateCacheForEndpoint(endpoint);
+      return null;
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    // Cache successful GET responses
+    if (isGet && cacheKey && data !== null) {
+      apiCache.set(cacheKey, { data, timestamp: Date.now() });
+    }
+
+    // Invalidate affected cache keys on data modifications
+    if (!isGet) {
+      invalidateCacheForEndpoint(endpoint);
+    }
+
+    return data;
   };
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  let res;
-  try {
-    res = await fetch(url, {
-      ...options,
-      headers,
+  if (isGet && cacheKey) {
+    const promise = executeRequest().finally(() => {
+      inFlightRequests.delete(cacheKey);
     });
-  } catch {
-    throw networkErr();
+    inFlightRequests.set(cacheKey, promise);
+    return promise;
   }
 
-  if (res.status === 401) {
-    clearAuth();
-    // Only redirect in browser environment if not already on login
-    if (typeof window !== "undefined" && !window.location.pathname.includes("login")) {
-      window.dispatchEvent(new CustomEvent("uf:auth-expired"));
+  return executeRequest();
+}
+
+/**
+ * Intelligent cache invalidation when data is created, updated, or deleted
+ */
+function invalidateCacheForEndpoint(endpoint) {
+  const clean = endpoint.replace(/^\/api\//, "").split("/")[0].split("?")[0];
+  if (clean) {
+    clearApiCache(clean);
+  } else {
+    clearApiCache();
+  }
+}
+
+/**
+ * Prefetch core datasets in the background during idle time
+ */
+export function prefetchCommonData() {
+  if (typeof window === "undefined") return;
+  const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 300));
+  idle(() => {
+    try {
+      getContacts().catch(() => {});
+      getProducts().catch(() => {});
+      getJournals().catch(() => {});
+      getAccounts().catch(() => {});
+      getPayments().catch(() => {});
+      getInvoices({ invoice_type: "customer_invoice" }).catch(() => {});
+    } catch {
+      // Silent background prefetch
     }
-    const errText = await parseError(res);
-    throw Object.assign(new Error(errText || "Session expired. Please log in again."), { status: 401 });
-  }
-
-  if (res.status === 403) {
-    const errText = await parseError(res);
-    throw Object.assign(new Error(errText || "Permission denied. You do not have access to perform this action."), { status: 403 });
-  }
-
-  if (!res.ok) {
-    const errText = await parseError(res);
-    throw Object.assign(new Error(errText), { status: res.status });
-  }
-
-  if (res.status === 204) {
-    return null;
-  }
-
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
+  });
 }
 
 // ── 1. Auth ─────────────────────────────────────────────────────────────────

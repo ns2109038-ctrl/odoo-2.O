@@ -23,8 +23,9 @@ import {
   X
 } from "lucide-react";
 
-// ── Auth ──────────────────────────────────────────────────────────
+// ── Auth & API ───────────────────────────────────────────────────
 import { getStoredAuth, clearAuth } from "./lib/auth.js";
+import { prefetchCommonData } from "./lib/api.js";
 import LoginPage           from "./pages/LoginPage.jsx";
 import SignupPage          from "./pages/SignupPage.jsx";
 import ForgotPasswordPage  from "./pages/ForgotPasswordPage.jsx";
@@ -74,6 +75,27 @@ function App() {
     setActiveSubTab(subTab);
     setSidebarOpen(false);
   };
+
+  // Visited pages retention set for 0ms instantaneous tab switching
+  const [visitedPages, setVisitedPages] = useState(() => new Set([activePage || "Dashboard"]));
+
+  useEffect(() => {
+    if (activePage) {
+      setVisitedPages((prev) => {
+        if (prev.has(activePage)) return prev;
+        const next = new Set(prev);
+        next.add(activePage);
+        return next;
+      });
+    }
+  }, [activePage]);
+
+  // Fast background prefetch on login/load so common data is in-memory
+  useEffect(() => {
+    if (authUser) {
+      prefetchCommonData();
+    }
+  }, [authUser]);
 
   // Security modal open state
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -242,19 +264,19 @@ function App() {
     );
   }
 
-  function renderPage() {
-    if (activePage === "Dashboard")          return <Dashboard authUser={authUser} onNavigate={handleNavigate} />;
-    if (activePage === "Contacts")           return <Contacts onNavigate={handleNavigate} />;
-    if (activePage === "Products")           return <Products onNavigate={handleNavigate} />;
-    if (activePage === "Chart of Accounts")  return <Accounts onNavigate={handleNavigate} />;
-    if (activePage === "Journals")           return <Journals onNavigate={handleNavigate} />;
-    if (activePage === "Journal Entries")   return <JournalEntries />;
-    if (activePage === "Budget")             return <Budget />;
-    if (activePage === "Sales")              return <Sales initialTab={activeSubTab || "orders"} />;
-    if (activePage === "Purchases")          return <Purchases initialTab={activeSubTab || "orders"} />;
-    if (activePage === "Payments")           return <Payments />;
-    if (activePage === "Reports" || activePage === "Analytics") return <BudgetReport initialReportType={activeSubTab || "budget"} authUser={authUser} />;
-    if (activePage === "Create User") {
+  function renderPageComponent(page) {
+    if (page === "Dashboard")          return <Dashboard authUser={authUser} onNavigate={handleNavigate} />;
+    if (page === "Contacts")           return <Contacts onNavigate={handleNavigate} />;
+    if (page === "Products")           return <Products onNavigate={handleNavigate} />;
+    if (page === "Chart of Accounts")  return <Accounts onNavigate={handleNavigate} />;
+    if (page === "Journals")           return <Journals onNavigate={handleNavigate} />;
+    if (page === "Journal Entries")    return <JournalEntries />;
+    if (page === "Budget")             return <Budget />;
+    if (page === "Sales")              return <Sales initialTab={activeSubTab || "orders"} />;
+    if (page === "Purchases")          return <Purchases initialTab={activeSubTab || "orders"} />;
+    if (page === "Payments")           return <Payments />;
+    if (page === "Reports" || page === "Analytics" || page === "Budget Report") return <BudgetReport initialReportType={activeSubTab || "budget"} authUser={authUser} />;
+    if (page === "Create User") {
       return <CreateUserPage authUser={authUser} />;
     }
     return renderSimplePage();
@@ -467,9 +489,20 @@ function App() {
           </div>
         </header>
 
-        {/* CONTENT */}
+        {/* CONTENT (With Instant 0ms Tab Retention & Visited Page KeepAlive) */}
         <section className="content-area">
-          {renderPage()}
+          {Array.from(visitedPages).map((page) => (
+            <div
+              key={page}
+              style={{
+                display: activePage === page ? "block" : "none",
+                height: "100%",
+                width: "100%",
+              }}
+            >
+              {renderPageComponent(page)}
+            </div>
+          ))}
         </section>
 
       </main>
