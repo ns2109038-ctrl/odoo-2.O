@@ -64,6 +64,12 @@ function App() {
 
   // Current page inside main app
   const [activePage, setActivePage] = useState("Dashboard");
+  const [activeSubTab, setActiveSubTab] = useState(null);
+
+  const handleNavigate = (page, subTab = null) => {
+    setActivePage(page);
+    setActiveSubTab(subTab);
+  };
 
   // Security modal open state
   const [showSecurityModal, setShowSecurityModal] = useState(false);
@@ -233,17 +239,17 @@ function App() {
   }
 
   function renderPage() {
-    if (activePage === "Dashboard")          return <Dashboard authUser={authUser} onNavigate={setActivePage} />;
+    if (activePage === "Dashboard")          return <Dashboard authUser={authUser} onNavigate={handleNavigate} />;
     if (activePage === "Contacts")           return <Contacts />;
     if (activePage === "Products")           return <Products />;
     if (activePage === "Chart of Accounts")  return <Accounts />;
     if (activePage === "Journals")           return <Journals />;
     if (activePage === "Journal Entries")   return <JournalEntries />;
     if (activePage === "Budget")             return <Budget />;
-    if (activePage === "Sales")              return <Sales initialTab="orders" />;
-    if (activePage === "Purchases")          return <Purchases initialTab="orders" />;
+    if (activePage === "Sales")              return <Sales initialTab={activeSubTab || "orders"} />;
+    if (activePage === "Purchases")          return <Purchases initialTab={activeSubTab || "orders"} />;
     if (activePage === "Payments")           return <Payments />;
-    if (activePage === "Reports" || activePage === "Analytics") return <BudgetReport authUser={authUser} />;
+    if (activePage === "Reports" || activePage === "Analytics") return <BudgetReport initialReportType={activeSubTab || "budget"} authUser={authUser} />;
     if (activePage === "Create User") {
       return <CreateUserPage authUser={authUser} />;
     }
