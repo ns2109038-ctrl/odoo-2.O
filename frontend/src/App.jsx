@@ -53,7 +53,7 @@ import Dashboard      from "./pages/Dashboard.jsx";
 function App() {
   // Auth view: "login" | "signup" | "forgot" | "reset"
   // Detect password reset token in URL on mount
-  const [resetToken] = useState(() => {
+  const [resetToken, setResetToken] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     return params.get("token") || null;
   });
@@ -207,6 +207,10 @@ function App() {
       return (
         <ForgotPasswordPage
           onGoLogin={() => setAuthView("login")}
+          onGoReset={(token) => {
+            if (token) setResetToken(token);
+            setAuthView("reset");
+          }}
         />
       );
     }

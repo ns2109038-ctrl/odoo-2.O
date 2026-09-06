@@ -609,6 +609,47 @@ export async function resetPassword(token, new_password, confirm_password) {
   return res.json();
 }
 
+export async function getSmtpConfig() {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/smtp-config`);
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
+export async function saveSmtpConfig(config) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/smtp-config`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
+export async function testSmtpConnection(testPayload) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/test-smtp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(testPayload),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
 /**
  * AI Copilot chat request
  */

@@ -17,7 +17,12 @@ from app.core.security import (
     decode_password_reset_token,
     hash_password,
 )
-from app.services.email_service import send_password_reset_email
+from app.services.email_service import (
+    send_password_reset_email,
+    get_smtp_settings,
+    update_smtp_env,
+    test_smtp_connection,
+)
 
 router = APIRouter(tags=["Authentication"])
 
@@ -36,7 +41,60 @@ class ResetPasswordRequest(BaseModel):
     confirm_password: Optional[str] = None
 
 
+class SmtpConfigRequest(BaseModel):
+    smtp_host: str
+    smtp_port: int = 587
+    smtp_user: str
+    smtp_password: Optional[str] = None
+    smtp_from: Optional[str] = None
+
+
+class TestSmtpRequest(BaseModel):
+    to_email: EmailStr
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = 587
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from: Optional[str] = None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("/smtp-config")
+def get_smtp_config():
+    """Get current SMTP configuration status and details (without exposing password)."""
+    return get_smtp_settings()
+
+
+@router.post("/smtp-config")
+def save_smtp_config(body: SmtpConfigRequest):
+    """Save SMTP relay configuration to environment file."""
+    update_smtp_env(
+        smtp_host=body.smtp_host,
+        smtp_port=body.smtp_port,
+        smtp_user=body.smtp_user,
+        smtp_password=body.smtp_password,
+        smtp_from=body.smtp_from,
+    )
+    return {
+        "success": True,
+        "message": "SMTP configuration updated successfully.",
+        "settings": get_smtp_settings(),
+    }
+
+
+@router.post("/test-smtp")
+def test_smtp(body: TestSmtpRequest):
+    """Test SMTP connection by sending a real email."""
+    res = test_smtp_connection(
+        to_email=str(body.to_email),
+        smtp_host=body.smtp_host,
+        smtp_port=body.smtp_port,
+        smtp_user=body.smtp_user,
+        smtp_password=body.smtp_password,
+        smtp_from=body.smtp_from,
+    )
+    return res
 
 @router.post("/login", response_model=AuthLoginResponse)
 def login(credentials: AuthLoginRequest, request: Request, db: Session = Depends(get_db)):
@@ -83,30 +141,47 @@ from sqlalchemy import func
 @router.post("/forgot-password", status_code=200)
 def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """
-    Send a password reset link to the user's email.
-    Always returns 200 (even if email not found) to prevent user enumeration.
+    Send a password reset link to the user's email or provide secure instant link.
     """
     clean_email = str(body.email).strip().lower()
     user = db.query(User).filter(func.lower(User.email) == clean_email).first()
 
+    reset_url = None
+    delivered_via_smtp = False
+    delivery_error = None
+
     if user and user.is_active:
         token = create_password_reset_token(user.id, user.email, user.login_id)
-
-        # Build reset URL pointing at the frontend
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
         reset_url = f"{frontend_url}/?token={token}"
 
-        send_password_reset_email(
+        dispatch_res = send_password_reset_email(
             to_email=user.email,
             login_id=user.login_id,
             reset_url=reset_url,
         )
+        delivered_via_smtp = dispatch_res.get("delivered", False)
+        delivery_error = dispatch_res.get("error")
+
+    smtp_settings = get_smtp_settings()
+    is_configured = smtp_settings.get("configured", False)
+
+    if delivered_via_smtp:
+        msg = f"A password reset link has been dispatched to {clean_email} via SMTP relay. Please check your inbox and spam folder."
+    elif is_configured and delivery_error:
+        msg = f"SMTP relay attempted to deliver to {clean_email} but failed: {delivery_error}. You can use the instant reset link below or re-test your SMTP configuration."
+    elif user and user.is_active:
+        msg = "SMTP email server is currently not configured. You can use the direct reset link below to choose a new password immediately, or configure SMTP credentials."
+    else:
+        msg = "If an account with that email exists, a password reset link has been generated."
 
     return {
-        "message": (
-            "If an account with that email exists, "
-            "a password reset link has been sent to your registered email address. Please check your inbox."
-        ),
+        "message": msg,
+        "delivered_via_smtp": delivered_via_smtp,
+        "smtp_configured": is_configured,
+        "reset_url": reset_url,
+        "email": clean_email,
+        "has_account": bool(user and user.is_active),
     }
 
 
