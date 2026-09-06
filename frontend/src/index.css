@@ -2717,28 +2717,148 @@ td b {
   }
 }
 
-/* ================= PRINT STYLES FOR OFFICIAL RECEIPT ================= */
+/* ================= COMPREHENSIVE PRINT STYLES ================= */
+.only-print {
+  display: none !important;
+}
+
 @media print {
-  body * {
+  /* 1. Globally suppress interactive chrome, navigation, headers, footers & copilot */
+  .no-print,
+  .app-sidebar,
+  .topbar,
+  .sidebar-backdrop,
+  .ai-copilot-btn,
+  .copilot-widget,
+  .floating-copilot,
+  .sidebar-help,
+  nav,
+  aside,
+  header.topbar {
+    display: none !important;
+  }
+
+  /* 2. Show dedicated print-only official letterheads/footers */
+  .only-print {
+    display: block !important;
+  }
+
+  /* 3. CASE A: When Receipt Modal is open, ONLY print the receipt card */
+  body.receipt-modal-open * {
     visibility: hidden !important;
   }
-  .receipt-printable-area,
-  .receipt-printable-area * {
+  body.receipt-modal-open .receipt-printable-area,
+  body.receipt-modal-open .receipt-printable-area * {
     visibility: visible !important;
   }
-  .receipt-printable-area {
+  body.receipt-modal-open .receipt-printable-area {
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
     margin: 0 !important;
-    padding: 15mm 20mm !important;
+    padding: 10mm 15mm !important;
     border: none !important;
     box-shadow: none !important;
     background: #ffffff !important;
   }
-  .no-print {
-    display: none !important;
+
+  /* 4. CASE B: When printing Reports or standard pages */
+  body:not(.receipt-modal-open) {
+    background: #ffffff !important;
+    color: #111827 !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 11pt !important;
+  }
+
+  body:not(.receipt-modal-open) * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body:not(.receipt-modal-open) .app-layout {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body:not(.receipt-modal-open) .main-area {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  body:not(.receipt-modal-open) .module-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 6mm 10mm !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  /* Report container formatting */
+  .report-printable-area {
+    width: 100% !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .report-printable-area table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt !important;
+    margin-top: 10px !important;
+  }
+
+  .report-printable-area th {
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    font-weight: 700 !important;
+    border-bottom: 2px solid #cbd5e1 !important;
+    padding: 8px 10px !important;
+  }
+
+  .report-printable-area td {
+    padding: 7px 10px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    color: #334155 !important;
+  }
+
+  .report-printable-area tr {
+    page-break-inside: avoid !important;
+  }
+
+  .report-printable-area thead {
+    display: table-header-group !important;
+  }
+
+  .stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+    page-break-inside: avoid !important;
+  }
+
+  .stat-card {
+    page-break-inside: avoid !important;
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+  }
+
+  .stat-card h2 {
+    font-size: 16pt !important;
   }
 }
 

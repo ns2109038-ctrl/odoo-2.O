@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import {
   getBudgetReport,
   getTrialBalanceReport,
@@ -17,6 +19,7 @@ import {
   Wallet,
   Scale,
   FileSpreadsheet,
+  FileText,
   Users,
   ShieldCheck,
   KeyRound,
@@ -82,6 +85,73 @@ export default function BudgetReport({ authUser, initialReportType = "budget" })
   const [resetModalData, setResetModalData] = useState(null);
   const [resetModalLoading, setResetModalLoading] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // PDF Export & Print State
+  const reportRef = useRef(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const getReportTitle = () => {
+    switch (reportType) {
+      case "budget":
+        return "Departmental Budget Tracking & Variance Analysis Report";
+      case "trial-balance":
+        return "Comprehensive Trial Balance Financial Statement";
+      case "balance-sheet":
+        return "Corporate Balance Sheet Statement";
+      case "profit-loss":
+        return "Statement of Profit & Loss (Income Statement)";
+      case "security-audit":
+        return "User Access Security & Authentication Audit Report";
+      default:
+        return "Financial Management Report";
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!reportRef.current) return;
+    setDownloadingPdf(true);
+    try {
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: 1280,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const cleanTitle = reportType.replace(/-/g, "_").toUpperCase();
+      pdf.save(`Urban_Furniture_${cleanTitle}_${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (err) {
+      console.error("PDF export error:", err);
+      // Fallback to browser print if canvas generation fails
+      window.print();
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   // Fetch report data
   const loadData = async () => {
@@ -380,7 +450,7 @@ export default function BudgetReport({ authUser, initialReportType = "budget" })
         </div>
 
         {/* Global Action Buttons */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }} className="no-print">
           <button
             onClick={() => window.print()}
             style={{
@@ -400,6 +470,28 @@ export default function BudgetReport({ authUser, initialReportType = "budget" })
           >
             <Printer size={16} style={{ color: "#48acf0" }} />
             <span>Print Report</span>
+          </button>
+
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloadingPdf}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "7px",
+              padding: "9px 16px",
+              background: "#ffffff",
+              border: "1px solid #ccdde2",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: "600",
+              color: "#594236",
+              cursor: downloadingPdf ? "not-allowed" : "pointer",
+              transition: "all 0.2s",
+            }}
+          >
+            <FileText size={16} style={{ color: "#0284c7" }} />
+            <span>{downloadingPdf ? "Generating PDF..." : "Download PDF"}</span>
           </button>
 
           <button
@@ -449,6 +541,7 @@ export default function BudgetReport({ authUser, initialReportType = "budget" })
 
       {/* ════════════ MAIN NAVIGATION TABS ════════════ */}
       <div
+        className="no-print"
         style={{
           display: "flex",
           gap: "8px",
@@ -591,6 +684,51 @@ export default function BudgetReport({ authUser, initialReportType = "budget" })
       </div>
 
       {error && <Alert type="error" style={{ marginBottom: "20px" }}>{error}</Alert>}
+
+      {/* ════════════ PRINTABLE REPORT CONTAINER ════════════ */}
+      <div ref={reportRef} id="printable-report-area" className="report-printable-area">
+        {/* ════════ OFFICIAL LETTERHEAD FOR PRINT & PDF ════════ */}
+        <div
+          className="only-print"
+          style={{
+            marginBottom: "22px",
+            paddingBottom: "16px",
+            borderBottom: "2px solid #594236",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px" }}>
+                <div style={{ width: "34px", height: "34px", background: "#594236", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", fontWeight: "900", fontSize: "16px" }}>
+                  UF
+                </div>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: "20px", fontWeight: "800", color: "#594236" }}>
+                    Urban Furniture & Furnishings Pvt. Ltd.
+                  </h1>
+                  <div style={{ fontSize: "11px", color: "#6f584b", marginTop: "2px" }}>
+                    Corporate Headquarters: Plot 44, Furniture Tech Park, Andheri East, Mumbai, MH 400069
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: "11px", color: "#6f584b" }}>
+                GSTIN: 27AABCU9603R1ZM • CIN: U36100MH2020PTC345678 • official-finance@urbanfurniture.com
+              </div>
+            </div>
+
+            <div style={{ textAlign: "right" }}>
+              <div style={{ display: "inline-block", background: "#f1f5f9", padding: "4px 10px", borderRadius: "4px", fontSize: "11px", fontWeight: "700", color: "#0f172a", textTransform: "uppercase", marginBottom: "4px" }}>
+                Certified Financial Record
+              </div>
+              <div style={{ fontSize: "14px", fontWeight: "800", color: "#2563eb" }}>
+                {getReportTitle()}
+              </div>
+              <div style={{ fontSize: "11px", color: "#64748b", marginTop: "3px" }}>
+                Fiscal Year: 2026-27 | Generated: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+              </div>
+            </div>
+          </div>
+        </div>
 
       {/* ══════════════════════════════════════════════════════════════════
           REPORT 1: BUDGET UTILIZATION REPORT
@@ -1780,9 +1918,50 @@ export default function BudgetReport({ authUser, initialReportType = "budget" })
         </div>
       )}
 
+        {/* ════════ OFFICIAL FOOTER & SIGNATURES FOR PRINT & PDF ════════ */}
+        <div
+          className="only-print"
+          style={{
+            marginTop: "36px",
+            paddingTop: "16px",
+            borderTop: "1px solid #cbd5e1",
+            pageBreakInside: "avoid",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "20px" }}>
+            <div>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#1e293b" }}>
+                Report Generated By:
+              </div>
+              <div style={{ fontSize: "12px", color: "#475569" }}>
+                {authUser?.name || "mali2026"} ({authUser?.role === "admin" ? "System Administrator" : "Finance Controller"})
+              </div>
+              <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>
+                Timestamp: {new Date().toLocaleString("en-IN")} • Urban ERP Core v2.0
+              </div>
+            </div>
+
+            <div style={{ textAlign: "center", minWidth: "180px" }}>
+              <div style={{ borderBottom: "1px solid #475569", width: "100%", height: "35px", marginBottom: "4px" }}></div>
+              <div style={{ fontSize: "11px", fontWeight: "700", color: "#1e293b" }}>
+                Authorized Financial Signatory
+              </div>
+              <div style={{ fontSize: "10px", color: "#64748b" }}>
+                Urban Furniture Finance Committee
+              </div>
+            </div>
+          </div>
+
+          <div style={{ textAlign: "center", fontSize: "10px", color: "#94a3b8" }}>
+            This document is a certified financial record generated directly from the Urban Furniture ledger system. Confidential and proprietary.
+          </div>
+        </div>
+      </div>
+
       {/* ════════════ INSTANT PASSWORD RESET MODAL ════════════ */}
       {resetModalUser && (
         <div
+          className="no-print"
           style={{
             position: "fixed",
             top: 0,

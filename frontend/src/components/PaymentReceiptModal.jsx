@@ -150,6 +150,18 @@ export default function PaymentReceiptModal({
       .catch((err) => console.error("QR Code generation error:", err));
   }, [payment]);
 
+  // Manage body class for print scoping
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add("receipt-modal-open");
+    } else {
+      document.body.classList.remove("receipt-modal-open");
+    }
+    return () => {
+      document.body.classList.remove("receipt-modal-open");
+    };
+  }, [isOpen]);
+
   if (!isOpen || !payment) return null;
 
   // Helper calculation
