@@ -31,6 +31,8 @@ def create_contact(db: Session, contact_data: ContactCreate) -> Contact:
         city=contact_data.city.strip() if contact_data.city else None,
         state=contact_data.state.strip() if contact_data.state else None,
         country=contact_data.country.strip() if contact_data.country else "India",
+        pincode=contact_data.pincode.strip() if contact_data.pincode else None,
+        profile_image=contact_data.profile_image,
         tax_id=contact_data.tax_id.strip() if contact_data.tax_id else None,
         is_active=contact_data.is_active,
     )
@@ -135,6 +137,12 @@ def update_contact(
 
     if "country" in update_dict:
         contact.country = update_dict["country"].strip() if update_dict["country"] else "India"
+
+    if "pincode" in update_dict:
+        contact.pincode = update_dict["pincode"].strip() if update_dict["pincode"] else None
+
+    if "profile_image" in update_dict:
+        contact.profile_image = update_dict["profile_image"]
 
     if "tax_id" in update_dict:
         contact.tax_id = update_dict["tax_id"].strip() if update_dict["tax_id"] else None

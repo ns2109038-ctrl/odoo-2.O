@@ -14,6 +14,8 @@ class ContactBase(BaseModel):
     city: Optional[str] = Field(None, max_length=100, description="City")
     state: Optional[str] = Field(None, max_length=100, description="State")
     country: Optional[str] = Field(default="India", max_length=100, description="Country")
+    pincode: Optional[str] = Field(None, max_length=20, description="PIN / Postal Code")
+    profile_image: Optional[str] = Field(None, description="Profile / Avatar image (URL or base64)")
     tax_id: Optional[str] = Field(None, max_length=50, description="Tax ID / GSTIN / VAT number")
     is_active: bool = Field(default=True, description="Active status")
 
@@ -43,6 +45,8 @@ class ContactUpdate(BaseModel):
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=100)
     country: Optional[str] = Field(None, max_length=100)
+    pincode: Optional[str] = Field(None, max_length=20)
+    profile_image: Optional[str] = None
     tax_id: Optional[str] = Field(None, max_length=50)
     is_active: Optional[bool] = None
 
@@ -73,6 +77,8 @@ class ContactResponse(BaseModel):
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
+    pincode: Optional[str] = None
+    profile_image: Optional[str] = None
     tax_id: Optional[str] = None
     is_active: bool
     created_at: Optional[datetime] = None
