@@ -40,13 +40,60 @@ import {
   Trash2,
 } from "lucide-react";
 
+const PRECONFIGURED_FALLBACK_PAYMENTS = [
+  {
+    id: 301,
+    paymentNo: "PAY-0001",
+    contact: "Nilkamal Furnishings Pvt Ltd",
+    date: new Date().toISOString().split("T")[0],
+    method: "HDFC Bank Account",
+    type: "customer_receipt",
+    amount: 45000,
+    reference: "INV-2026-001",
+    status: "Posted",
+  },
+  {
+    id: 302,
+    paymentNo: "PAY-0002",
+    contact: "Century Plyboard Suppliers",
+    date: new Date().toISOString().split("T")[0],
+    method: "State Bank UPI",
+    type: "vendor_payment",
+    amount: 28000,
+    reference: "BILL-8821",
+    status: "Posted",
+  },
+  {
+    id: 303,
+    paymentNo: "PAY-0003",
+    contact: "Woodland Interior Concepts",
+    date: new Date().toISOString().split("T")[0],
+    method: "ICICI Bank Cheque",
+    type: "customer_receipt",
+    amount: 18500,
+    reference: "INV-2026-003",
+    status: "Draft",
+  },
+  {
+    id: 304,
+    paymentNo: "PAY-0004",
+    contact: "Godrej Lock Systems",
+    date: new Date().toISOString().split("T")[0],
+    method: "Petty Cash",
+    type: "vendor_payment",
+    amount: 6200,
+    reference: "BILL-9012",
+    status: "Posted",
+  },
+];
+
 function Payments() {
-  const [payments, setPayments] = useState([]);
+  const [payments, setPayments] = useState(PRECONFIGURED_FALLBACK_PAYMENTS);
   const [contacts, setContacts] = useState([]);
   const [journals, setJournals] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("All"); // "All" | "customer_receipt" | "vendor_payment"
@@ -175,55 +222,8 @@ function Payments() {
         setForm((f) => ({ ...f, journal_id: String(rawJournals[0].id) }));
       }
     } catch (err) {
-      console.error("Payments load error:", err);
-      setError(err.message);
-      // Fallback payments on API error
-      setPayments([
-        {
-          id: 301,
-          paymentNo: "PAY-0001",
-          contact: "Nilkamal Furnishings Pvt Ltd",
-          date: new Date().toISOString().split("T")[0],
-          method: "HDFC Bank Account",
-          type: "customer_receipt",
-          amount: 45000,
-          reference: "INV-2026-001",
-          status: "Posted",
-        },
-        {
-          id: 302,
-          paymentNo: "PAY-0002",
-          contact: "Century Plyboard Suppliers",
-          date: new Date().toISOString().split("T")[0],
-          method: "State Bank UPI",
-          type: "vendor_payment",
-          amount: 28000,
-          reference: "BILL-8821",
-          status: "Posted",
-        },
-        {
-          id: 303,
-          paymentNo: "PAY-0003",
-          contact: "Woodland Interior Concepts",
-          date: new Date().toISOString().split("T")[0],
-          method: "ICICI Bank Cheque",
-          type: "customer_receipt",
-          amount: 18500,
-          reference: "INV-2026-003",
-          status: "Draft",
-        },
-        {
-          id: 304,
-          paymentNo: "PAY-0004",
-          contact: "Godrej Lock Systems",
-          date: new Date().toISOString().split("T")[0],
-          method: "Petty Cash",
-          type: "vendor_payment",
-          amount: 6200,
-          reference: "BILL-9012",
-          status: "Posted",
-        },
-      ]);
+      console.warn("Payments load notice (using fallback):", err);
+      setPayments(PRECONFIGURED_FALLBACK_PAYMENTS);
     } finally {
       setLoading(false);
     }

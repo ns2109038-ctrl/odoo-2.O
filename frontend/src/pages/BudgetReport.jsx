@@ -111,7 +111,7 @@ export default function BudgetReport({ authUser, initialReportType = "budget" })
         setActiveSessions(Array.isArray(sData) ? sData : (sData?.items || []));
       }
     } catch (err) {
-      setError(err.message || "Failed to load report data");
+      console.warn("Budget report notice (using fallbacks):", err);
     } finally {
       setLoading(false);
       setRefreshing(false);

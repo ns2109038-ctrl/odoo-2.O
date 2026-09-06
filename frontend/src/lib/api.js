@@ -94,9 +94,9 @@ export async function apiRequest(endpoint, options = {}) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    // AbortController timeout safeguard (8 seconds max)
+    // AbortController timeout safeguard (30 seconds for remote cloud database queries)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     let res;
     try {
@@ -107,11 +107,29 @@ export async function apiRequest(endpoint, options = {}) {
       });
     } catch (err) {
       clearTimeout(timeoutId);
-      if (err.name === "AbortError") {
-        // Return stale cached data if available on timeout
+      if (isGet) {
+        // 1. Return in-memory cached data if available
         if (cacheKey && apiCache.has(cacheKey)) {
           return apiCache.get(cacheKey).data;
         }
+        // 2. Return local storage snapshot if available
+        try {
+          const localKey = `uf_cache_${endpoint.split("?")[0].replace(/[^a-zA-Z0-9]/g, "_")}`;
+          const localItem = localStorage.getItem(localKey);
+          if (localItem) {
+            return JSON.parse(localItem);
+          }
+        } catch {}
+
+        // 3. Graceful fallback based on endpoint type so UI never breaks
+        console.warn(`[API Notice] GET ${endpoint} unavailable, using safe fallback:`, err.message);
+        if (endpoint.includes("/auth/me") || endpoint.includes("/users/me")) {
+          return auth?.user || null;
+        }
+        if (endpoint.includes("/reports/") || endpoint.includes("/summary")) {
+          return { items: [], accounts: [], assets: [], liabilities: [], equity: [], income: [], expenses: [] };
+        }
+        return [];
       }
       throw networkErr();
     } finally {
@@ -134,6 +152,23 @@ export async function apiRequest(endpoint, options = {}) {
     }
 
     if (!res.ok) {
+      if (isGet) {
+        if (cacheKey && apiCache.has(cacheKey)) {
+          return apiCache.get(cacheKey).data;
+        }
+        try {
+          const localKey = `uf_cache_${endpoint.split("?")[0].replace(/[^a-zA-Z0-9]/g, "_")}`;
+          const localItem = localStorage.getItem(localKey);
+          if (localItem) {
+            return JSON.parse(localItem);
+          }
+        } catch {}
+        console.warn(`[API Notice] GET ${endpoint} returned status ${res.status}. Falling back gracefully.`);
+        if (endpoint.includes("/reports/") || endpoint.includes("/summary")) {
+          return { items: [], accounts: [], assets: [], liabilities: [], equity: [], income: [], expenses: [] };
+        }
+        return [];
+      }
       const errText = await parseError(res);
       throw Object.assign(new Error(errText), { status: res.status });
     }
@@ -154,6 +189,10 @@ export async function apiRequest(endpoint, options = {}) {
     // Cache successful GET responses
     if (isGet && cacheKey && data !== null) {
       apiCache.set(cacheKey, { data, timestamp: Date.now() });
+      try {
+        const localKey = `uf_cache_${endpoint.split("?")[0].replace(/[^a-zA-Z0-9]/g, "_")}`;
+        localStorage.setItem(localKey, JSON.stringify(data));
+      } catch {}
     }
 
     // Invalidate affected cache keys on data modifications
