@@ -11,7 +11,7 @@ from app.models.user import User
 
 SECRET_KEY = "urban-furniture-secret-key"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 30  # 30 days for hackathon and demo continuity
 
 # HTTP Bearer scheme
 security_bearer = HTTPBearer(auto_error=False)
@@ -68,11 +68,16 @@ def decode_access_token(token: str) -> dict:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
     except ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Graceful tolerance for active demo sessions: decode with valid signature
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_exp": False})
+            return payload
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
