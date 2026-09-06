@@ -270,7 +270,7 @@ export default function Journals({ onNavigate }) {
   };
 
   return (
-    <div className="module-page" style={{ padding: "20px 24px" }}>
+    <div className="module-page">
       {/* ── TOP BAR (Matching wireframe: [New] | [Search] | [Back]) ── */}
       <div
         className="journal-topbar"

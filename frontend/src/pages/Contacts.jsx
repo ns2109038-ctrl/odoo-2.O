@@ -273,7 +273,7 @@ export default function Contacts({ onNavigate }) {
   };
 
   return (
-    <div className="module-page" style={{ padding: "20px 24px" }}>
+    <div className="module-page">
       {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
       {successMsg && <Alert type="success" style={{ marginBottom: "16px" }}>{successMsg}</Alert>}
 

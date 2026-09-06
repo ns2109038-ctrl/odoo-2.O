@@ -127,7 +127,7 @@ export default function Dashboard({ authUser, onNavigate }) {
   const formatMoney = (val) => `₹${Number(val || 0).toLocaleString("en-IN")}`;
 
   return (
-    <div className="dash-page" style={{ padding: "20px 24px" }}>
+    <div className="dash-page">
 
       {/* ── 1. Hero Page Header Banner ───────────────────────────────────────── */}
       <div

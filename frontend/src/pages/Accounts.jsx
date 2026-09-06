@@ -234,7 +234,7 @@ export default function Accounts({ onNavigate }) {
   };
 
   return (
-    <div className="module-page" style={{ padding: "20px 24px" }}>
+    <div className="module-page">
       {/* ── TOP BAR (Matching wireframe: [New] [Confirm] [Archived] | [Search] | [Home] [Back]) ── */}
       <div
         className="account-topbar"

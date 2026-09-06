@@ -18,7 +18,9 @@ import {
   LogOut,
   HelpCircle,
   ClipboardList,
-  ShieldCheck
+  ShieldCheck,
+  Menu,
+  X
 } from "lucide-react";
 
 // ── Auth ──────────────────────────────────────────────────────────
@@ -65,10 +67,12 @@ function App() {
   // Current page inside main app
   const [activePage, setActivePage] = useState("Dashboard");
   const [activeSubTab, setActiveSubTab] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleNavigate = (page, subTab = null) => {
     setActivePage(page);
     setActiveSubTab(subTab);
+    setSidebarOpen(false);
   };
 
   // Security modal open state
@@ -267,7 +271,8 @@ function App() {
     <div className="app-layout">
 
       {/* ═══════════════ SIDEBAR ═══════════════ */}
-      <aside className="sidebar">
+      {/* ═══════════════ SIDEBAR DRAWER ═══════════════ */}
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
 
         <div className="brand">
           <img
@@ -276,10 +281,17 @@ function App() {
             style={{ height: "44px", width: "auto", backgroundColor: "#fff",
                      borderRadius: "8px", padding: "2px 6px", objectFit: "contain" }}
           />
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <h2>Urban Furniture</h2>
             <p>Accounting System</p>
           </div>
+          <button
+            className="sidebar-close-btn"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close navigation"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* MAIN */}
@@ -287,7 +299,7 @@ function App() {
         <div className="menu-list">
           <button
             className={`menu-item ${activePage === "Dashboard" ? "active" : ""}`}
-            onClick={() => setActivePage("Dashboard")}
+            onClick={() => { setActivePage("Dashboard"); setSidebarOpen(false); }}
           >
             <span className="menu-icon"><LayoutDashboard size={17} /></span> Dashboard
           </button>
@@ -302,7 +314,7 @@ function App() {
               <button
                 key={item.name}
                 className={`menu-item ${activePage === item.name ? "active" : ""}`}
-                onClick={() => setActivePage(item.name)}
+                onClick={() => { setActivePage(item.name); setSidebarOpen(false); }}
               >
                 <span className="menu-icon"><Icon size={17} /></span> {item.name}
               </button>
@@ -319,7 +331,7 @@ function App() {
               <button
                 key={item.name}
                 className={`menu-item ${activePage === item.name ? "active" : ""}`}
-                onClick={() => setActivePage(item.name)}
+                onClick={() => { setActivePage(item.name); setSidebarOpen(false); }}
               >
                 <span className="menu-icon"><Icon size={17} /></span> {item.name}
               </button>
@@ -334,7 +346,7 @@ function App() {
             <div className="menu-list">
               <button
                 className={`menu-item ${activePage === "Create User" ? "active" : ""}`}
-                onClick={() => setActivePage("Create User")}
+                onClick={() => { setActivePage("Create User"); setSidebarOpen(false); }}
               >
                 <span className="menu-icon"><UserPlus size={17} /></span> Create User
               </button>
@@ -347,7 +359,7 @@ function App() {
         <div className="menu-list">
           <button
             className={`menu-item ${activePage === "Reports" ? "active" : ""}`}
-            onClick={() => setActivePage("Reports")}
+            onClick={() => { setActivePage("Reports"); setSidebarOpen(false); }}
           >
             <span className="menu-icon"><BarChart3 size={17} /></span> Reports
           </button>
@@ -355,10 +367,10 @@ function App() {
 
         <div
           className="sidebar-help"
-          onClick={() => setShowHelpModal(true)}
+          onClick={() => { setShowHelpModal(true); setSidebarOpen(false); }}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setShowHelpModal(true); }}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { setShowHelpModal(true); setSidebarOpen(false); } }}
           title="Click to get support, open a ticket, or view system status"
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
@@ -373,15 +385,34 @@ function App() {
 
       </aside>
 
+      {/* ═══════════════ MOBILE BACKDROP OVERLAY ═══════════════ */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* ═══════════════ MAIN AREA ═══════════════ */}
       <main className="main-area">
 
         {/* TOPBAR */}
         <header className="topbar">
-          <div className="topbar-search-wrap">
-            <Search size={16} className="search-icon" />
-            <input className="global-search" placeholder="Search transactions, contacts, journals..." />
+          <div className="topbar-left">
+            <button
+              className="sidebar-toggle-btn"
+              onClick={() => setSidebarOpen((prev) => !prev)}
+              aria-label="Toggle navigation menu"
+              title="Toggle Menu"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="topbar-search-wrap">
+              <Search size={16} className="search-icon" />
+              <input className="global-search" placeholder="Search transactions, contacts, journals..." />
+            </div>
           </div>
+
           <div className="topbar-right">
             <button
               className="topbar-icon-btn"
@@ -409,7 +440,7 @@ function App() {
                 onMarkAllAsRead={handleMarkAllAsRead}
                 onClearAll={handleClearAllNotifications}
                 onDeleteNotification={handleDeleteNotification}
-                onNavigate={(page) => setActivePage(page)}
+                onNavigate={(page) => { setActivePage(page); setSidebarOpen(false); }}
               />
             </div>
 
@@ -420,7 +451,7 @@ function App() {
               style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", transition: "background 0.2s" }}
             >
               <div className="user-avatar">{initials}</div>
-              <div className="user-info">
+              <div className="user-info hide-on-mobile">
                 <b>{authUser.loginId}</b>
                 <small style={{ color: "#48acf0" }}>{roleLabel} • 2FA 🛡️</small>
               </div>
@@ -431,7 +462,7 @@ function App() {
               onClick={handleLogout}
               title="Sign Out"
             >
-              <LogOut size={15} /> Sign Out
+              <LogOut size={15} /> <span className="hide-on-mobile">Sign Out</span>
             </button>
           </div>
         </header>
