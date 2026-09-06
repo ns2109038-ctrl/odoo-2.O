@@ -424,7 +424,7 @@ export default function CreateUserPage({ authUser }) {
                     <th style={{ padding: "14px 18px" }}>Role</th>
                     <th style={{ padding: "14px 18px" }}>Live Session</th>
                     <th style={{ padding: "14px 18px" }}>Status</th>
-                    <th style={{ padding: "14px 18px", textAlign: "right" }}>Reset Link Action</th>
+                    <th style={{ padding: "14px 18px", textAlign: "right" }}>Password Reset</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -519,8 +519,8 @@ export default function CreateUserPage({ authUser }) {
                               boxShadow: "0 2px 6px rgba(37, 99, 235, 0.2)",
                             }}
                           >
-                            <KeyRound size={13} />
-                            <span>⚡ Reset Link</span>
+                            <Mail size={13} />
+                            <span>Send Reset Email</span>
                           </button>
                         </td>
                       </tr>
@@ -740,7 +740,7 @@ export default function CreateUserPage({ authUser }) {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <h3 style={{ margin: 0, fontSize: "18px", color: "#0f172a", fontWeight: "800" }}>
-                ⚡ Instant Password Reset Link
+                📧 Password Reset Email Dispatched
               </h3>
               <button
                 onClick={() => {
@@ -754,86 +754,42 @@ export default function CreateUserPage({ authUser }) {
             </div>
 
             <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 16px 0" }}>
-              Generated for user account: <strong>{targetUserReset}</strong>
+              Target User Account: <strong>{targetUserReset}</strong>
             </p>
 
             {resetModalLoading ? (
               <div style={{ padding: "24px 0", textAlign: "center", color: "#2563eb" }}>
                 <RefreshCw size={24} className="spin-animation" style={{ margin: "0 auto 10px" }} />
-                <div>Generating encrypted link...</div>
+                <div>Dispatching password reset email...</div>
               </div>
             ) : resetModalData ? (
               <div>
                 <Alert type="success" style={{ marginBottom: "14px" }}>
-                  Reset link generated successfully! (Valid for 15 mins)
+                  Reset link sent to registered email!
                 </Alert>
                 <div
                   style={{
                     background: "#f8fafc",
                     border: "1px solid #cbd5e1",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                    wordBreak: "break-all",
+                    padding: "16px",
+                    borderRadius: "10px",
                     marginBottom: "16px",
-                    fontFamily: "monospace",
                   }}
                 >
-                  {resetModalData.reset_url || `${window.location.origin}/login?reset_token=${resetModalData.reset_token}`}
+                  <p style={{ margin: "0 0 6px 0", fontSize: "13px", color: "#475569" }}>
+                    The password reset link was automatically emailed to:
+                  </p>
+                  <div style={{ fontWeight: "700", color: "#0f172a", fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Mail size={16} style={{ color: "#2563eb" }} />
+                    <span>{resetModalData.email}</span>
+                  </div>
+                  <p style={{ margin: "10px 0 0 0", fontSize: "12px", color: "#64748b" }}>
+                    User ID: <strong>{resetModalData.login_id}</strong> &bull; Link valid for 30 minutes.
+                  </p>
                 </div>
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-                  <button
-                    onClick={() =>
-                      copyToClipboard(
-                        resetModalData.reset_url ||
-                          `${window.location.origin}/login?reset_token=${resetModalData.reset_token}`
-                      )
-                    }
-                    style={{
-                      flex: 1,
-                      padding: "10px 16px",
-                      background: copiedLink ? "#16a34a" : "#2563eb",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    {copiedLink ? <CheckCircle2 size={16} /> : <Copy size={16} />}
-                    <span>{copiedLink ? "Copied to Clipboard!" : "Copy Reset Link"}</span>
-                  </button>
 
-                  <a
-                    href={`mailto:${resetModalData.email || ""}?subject=${encodeURIComponent(
-                      "Urban Furniture Account - Password Reset Link"
-                    )}&body=${encodeURIComponent(
-                      `Hello ${resetModalData.login_id},\n\nHere is your password reset link:\n\n${
-                        resetModalData.reset_url ||
-                        `${window.location.origin}/login?reset_token=${resetModalData.reset_token}`
-                      }\n\nThis link is valid for 15 minutes.`
-                    )}`}
-                    style={{
-                      padding: "10px 16px",
-                      background: "#0284c7",
-                      color: "#fff",
-                      borderRadius: "8px",
-                      textDecoration: "none",
-                      fontSize: "13px",
-                      fontWeight: "700",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <Mail size={16} />
-                    <span>Send Email</span>
-                  </a>
+                <div style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.5", marginBottom: "16px" }}>
+                  🔒 For maximum security, reset links are sent directly to the user&apos;s registered email address and are not displayed on screen.
                 </div>
               </div>
             ) : null}

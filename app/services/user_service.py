@@ -48,7 +48,7 @@ def create_user(db: Session, user_data: UserCreate) -> User:
 def get_users(
     db: Session,
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 1000,
     is_active: Optional[bool] = None,
     role: Optional[str] = None,
 ) -> List[User]:
@@ -57,7 +57,7 @@ def get_users(
         query = query.filter(User.is_active == is_active)
     if role:
         query = query.filter(func.lower(User.role) == role.lower())
-    return query.order_by(User.id.asc()).offset(skip).limit(limit).all()
+    return query.order_by(User.id.desc()).offset(skip).limit(limit).all()
 
 
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:

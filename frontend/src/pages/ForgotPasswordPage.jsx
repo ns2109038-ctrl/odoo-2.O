@@ -9,8 +9,6 @@ export default function ForgotPasswordPage({ onGoLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [devResetUrl, setDevResetUrl] = useState(null);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -20,11 +18,8 @@ export default function ForgotPasswordPage({ onGoLogin }) {
 
     setLoading(true);
     try {
-      const data = await forgotPassword(email.trim());
+      await forgotPassword(email.trim());
       setSuccess(true);
-      if (data?.dev_reset_url) {
-        setDevResetUrl(data.dev_reset_url);
-      }
     } catch (err) {
       setError(err.message || "Something went wrong. Please try again.");
     } finally {
@@ -69,46 +64,13 @@ export default function ForgotPasswordPage({ onGoLogin }) {
           {success ? (
             <div>
               <Alert type="success">
-                <strong>Reset Request Processed!</strong>
+                <strong>Reset Link Sent via Email!</strong>
                 <br />
-                If an account with that email exists, a password reset link has been generated. The link is valid for <strong>30 minutes</strong>.
+                If an account with that email exists, a password reset link has been sent directly to your registered email address. The link is valid for <strong>30 minutes</strong>.
               </Alert>
 
-              {devResetUrl && (
-                <div style={{
-                  marginTop: "16px",
-                  padding: "14px",
-                  background: "rgba(72, 172, 240, 0.08)",
-                  border: "1px dashed #38bdf8",
-                  borderRadius: "8px"
-                }}>
-                  <p style={{ margin: "0 0 8px", fontSize: "12px", fontWeight: 600, color: "#38bdf8" }}>
-                    ⚡ Development Notice (SMTP Not Configured):
-                  </p>
-                  <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--c-text-muted, #94a3b8)", lineHeight: "1.5" }}>
-                    SMTP email sending is not configured in <code>.env</code>. You can test your reset link directly right here:
-                  </p>
-                  <a
-                    href={devResetUrl}
-                    style={{
-                      display: "block",
-                      textAlign: "center",
-                      backgroundColor: "#0284c7",
-                      color: "#ffffff",
-                      padding: "10px 16px",
-                      borderRadius: "6px",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      textDecoration: "none"
-                    }}
-                  >
-                    Open Password Reset Link →
-                  </a>
-                </div>
-              )}
-
               <div style={{ marginTop: "12px", fontSize: "13px", color: "var(--c-text-muted, #64748b)", lineHeight: "1.6" }}>
-                {!devResetUrl && "Didn't receive it? Check your spam folder or make sure you entered your registered account email."}
+                Didn&apos;t receive it? Check your spam folder or make sure you entered your registered account email.
               </div>
               <div style={{ marginTop: "20px" }}>
                 <Button variant="secondary" fullWidth onClick={onGoLogin}>

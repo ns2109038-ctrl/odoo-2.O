@@ -219,9 +219,7 @@ def request_user_password_reset(body: RequestResetInput, db: Session = Depends(g
         print(f"[Email Warning] {exc}")
 
     return {
-        "message": "Password reset link generated successfully.",
-        "reset_token": token,
-        "reset_url": reset_url,
+        "message": f"Password reset email has been sent directly to {user.email}.",
         "email": user.email,
         "login_id": user.login_id,
     }

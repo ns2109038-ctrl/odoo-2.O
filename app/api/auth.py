@@ -85,13 +85,10 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """
     Send a password reset link to the user's email.
     Always returns 200 (even if email not found) to prevent user enumeration.
-    In development mode (when SMTP credentials are not configured in .env),
-    includes dev_reset_url so developers/judges can test the flow immediately.
     """
     clean_email = str(body.email).strip().lower()
     user = db.query(User).filter(func.lower(User.email) == clean_email).first()
 
-    dev_reset_url = None
     if user and user.is_active:
         token = create_password_reset_token(user.id, user.email, user.login_id)
 
@@ -105,18 +102,11 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
             reset_url=reset_url,
         )
 
-        smtp_ready = bool(
-            os.getenv("SMTP_HOST") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASSWORD")
-        )
-        if not smtp_ready:
-            dev_reset_url = reset_url
-
     return {
         "message": (
             "If an account with that email exists, "
-            "a password reset link has been sent. Please check your inbox."
+            "a password reset link has been sent to your registered email address. Please check your inbox."
         ),
-        "dev_reset_url": dev_reset_url,
     }
 
 

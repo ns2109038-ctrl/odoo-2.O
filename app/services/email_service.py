@@ -93,9 +93,10 @@ Urban Furniture Accounting System
 
     # Development / Fallback mode: Log cleanly to console
     print("\n" + "=" * 65)
-    print(f"📧 [PASSWORD RESET EMAIL DISPATCHED]")
+    print(f"[PASSWORD RESET EMAIL DISPATCHED]")
     print(f"To: {to_email} (User: {login_id})")
     print(f"Subject: {subject}")
     print(f"Reset URL: {reset_url}")
     print("=" * 65 + "\n")
     return True
+
