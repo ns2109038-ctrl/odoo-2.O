@@ -2717,3 +2717,29 @@ td b {
   }
 }
 
+/* ================= PRINT STYLES FOR OFFICIAL RECEIPT ================= */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .receipt-printable-area,
+  .receipt-printable-area * {
+    visibility: visible !important;
+  }
+  .receipt-printable-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 15mm 20mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+

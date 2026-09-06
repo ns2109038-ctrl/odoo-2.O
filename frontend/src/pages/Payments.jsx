@@ -6,9 +6,12 @@ import {
   cancelPayment,
   getContacts,
   getJournals,
+  getInvoices,
+  getProducts,
 } from "../lib/api.js";
 import Alert from "../components/ui/Alert.jsx";
 import UpiQrPayModal from "../components/UpiQrPayModal.jsx";
+import PaymentReceiptModal from "../components/PaymentReceiptModal.jsx";
 import {
   CreditCard,
   Plus,
@@ -30,12 +33,19 @@ import {
   Banknote,
   Receipt,
   Layers,
+  FileText,
+  Download,
+  Printer,
+  Package,
+  Trash2,
 } from "lucide-react";
 
 function Payments() {
   const [payments, setPayments] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [journals, setJournals] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -54,11 +64,16 @@ function Payments() {
   const [showRowUpiModal, setShowRowUpiModal] = useState(false);
   const [selectedPaymentForQr, setSelectedPaymentForQr] = useState(null);
 
+  // Payment Receipt Modal State (Itemized products + PDF download)
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState(null);
+
   const [form, setForm] = useState({
     payment_type: "customer_receipt",
     payment_mode: "upi", // "upi" | "bank" | "cash" | "cheque"
     contact_id: "",
     journal_id: "",
+    invoice_id: "",
     amount: "",
     reference: "",
     payment_date: new Date().toISOString().split("T")[0],
@@ -70,15 +85,22 @@ function Payments() {
     setLoading(true);
     setError("");
     try {
-      const [payRes, contactsRes, journalsRes] = await Promise.all([
+      const [payRes, contactsRes, journalsRes, invRes, prodRes] = await Promise.all([
         getPayments(),
         getContacts(),
         getJournals(),
+        getInvoices().catch(() => []),
+        getProducts().catch(() => []),
       ]);
 
       const rawPayments = Array.isArray(payRes) ? payRes : (payRes?.items || payRes?.data || []);
       const rawContacts = Array.isArray(contactsRes) ? contactsRes : (contactsRes?.items || contactsRes?.data || []);
       const rawJournals = Array.isArray(journalsRes) ? journalsRes : (journalsRes?.items || journalsRes?.data || []);
+      const rawInvoices = Array.isArray(invRes) ? invRes : (invRes?.items || invRes?.data || []);
+      const rawProducts = Array.isArray(prodRes) ? prodRes : (prodRes?.items || prodRes?.data || []);
+
+      setInvoices(rawInvoices);
+      setProducts(rawProducts);
 
       let mapped = rawPayments.map((p) => ({
         id: p.id,
@@ -270,6 +292,25 @@ function Payments() {
     });
   };
 
+  const handleInvoiceSelect = (invoiceId) => {
+    if (!invoiceId) {
+      setForm((prev) => ({ ...prev, invoice_id: "" }));
+      return;
+    }
+    const inv = invoices.find((i) => String(i.id) === String(invoiceId));
+    if (inv) {
+      const invTotal = inv.total_amount || inv.amount_total || inv.grand_total || inv.amount_due || "";
+      const invRef = inv.invoice_number || inv.invoiceNo || `INV-${inv.id}`;
+      setForm((prev) => ({
+        ...prev,
+        invoice_id: String(invoiceId),
+        contact_id: inv.customer_id ? String(inv.customer_id) : (inv.contact_id ? String(inv.contact_id) : prev.contact_id),
+        amount: invTotal ? String(invTotal) : prev.amount,
+        reference: invRef,
+      }));
+    }
+  };
+
   const resetForm = () => {
     const defJournal = journals.find((j) =>
       j.journal_name.toLowerCase().includes("upi") ||
@@ -281,6 +322,7 @@ function Payments() {
       payment_mode: "upi",
       contact_id: contacts[0]?.id ? String(contacts[0].id) : "",
       journal_id: defJournal?.id ? String(defJournal.id) : "",
+      invoice_id: "",
       amount: "",
       reference: "",
       payment_date: new Date().toISOString().split("T")[0],
@@ -604,12 +646,31 @@ function Payments() {
                   return (
                     <tr key={p.id} style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s" }}>
                       <td style={{ padding: "14px 18px" }}>
-                        <span style={{
-                          background: "rgba(89, 66, 54, 0.08)", color: "#594236", padding: "4px 8px",
-                          borderRadius: "6px", fontFamily: "monospace", fontWeight: "700", fontSize: "12px"
-                        }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPaymentForReceipt(p);
+                            setShowReceiptModal(true);
+                          }}
+                          title="Click to view & download official receipt with product details"
+                          style={{
+                            background: "rgba(89, 66, 54, 0.08)",
+                            color: "#594236",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontFamily: "monospace",
+                            fontWeight: "700",
+                            fontSize: "12px",
+                            border: "1px solid rgba(89, 66, 54, 0.2)",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px"
+                          }}
+                        >
+                          <FileText size={12} style={{ color: "#0284c7" }} />
                           {p.paymentNo}
-                        </span>
+                        </button>
                       </td>
 
                       <td style={{ padding: "14px 18px", fontWeight: "600", color: "#594236" }}>{p.contact}</td>
@@ -675,6 +736,32 @@ function Payments() {
                       </td>
 
                       <td style={{ padding: "14px 18px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPaymentForReceipt(p);
+                            setShowReceiptModal(true);
+                          }}
+                          title="Generate & Download PDF Receipt with Product Details"
+                          style={{
+                            background: "#f0fdf4",
+                            color: "#166534",
+                            border: "1px solid #bbf7d0",
+                            padding: "4px 9px",
+                            borderRadius: "6px",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            marginRight: "6px",
+                            boxShadow: "0 1px 2px rgba(22, 101, 52, 0.08)",
+                          }}
+                        >
+                          <Receipt size={12} /> Receipt
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -825,6 +912,36 @@ function Payments() {
                     </label>
                   </div>
                 </div>
+
+                {/* INVOICE LINKAGE FOR RECEIPTS */}
+                {form.payment_type === "customer_receipt" && invoices.length > 0 && (
+                  <div className="form-group" style={{ gridColumn: "span 2" }}>
+                    <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <Receipt size={14} style={{ color: "#166534" }} /> Link to Invoice (Itemized Products in Receipt)
+                      </span>
+                      <span style={{ fontSize: "11px", color: "#166534", fontWeight: "600", background: "#f0fdf4", padding: "2px 8px", borderRadius: "4px", border: "1px solid #bbf7d0" }}>
+                        ✨ Auto-fills customer &amp; products
+                      </span>
+                    </label>
+                    <select
+                      name="invoice_id"
+                      value={form.invoice_id}
+                      onChange={(e) => handleInvoiceSelect(e.target.value)}
+                      style={{
+                        width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
+                        padding: "0 12px", fontSize: "13px", outline: "none", background: "#f8fafc"
+                      }}
+                    >
+                      <option value="">-- Optional: Select Invoice to import product lines --</option>
+                      {invoices.map((inv) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.invoice_number || `INV-${inv.id}`} - {inv.customer?.name || "Customer"} (₹{Number(inv.total_amount || 0).toLocaleString("en-IN")})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* PAYMENT METHOD / CHANNEL SELECTOR */}
                 <div className="form-group" style={{ gridColumn: "span 2" }}>
@@ -1126,6 +1243,21 @@ function Payments() {
             setSelectedPaymentForQr(null);
           }}
           isStandalone={true}
+        />
+      )}
+
+      {/* OFFICIAL PAYMENT RECEIPT MODAL WITH PRODUCT DETAILS & PDF DOWNLOAD */}
+      {showReceiptModal && selectedPaymentForReceipt && (
+        <PaymentReceiptModal
+          isOpen={showReceiptModal}
+          onClose={() => {
+            setShowReceiptModal(false);
+            setSelectedPaymentForReceipt(null);
+          }}
+          payment={selectedPaymentForReceipt}
+          invoices={invoices}
+          products={products}
+          contacts={contacts}
         />
       )}
     </div>
