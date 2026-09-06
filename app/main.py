@@ -130,6 +130,54 @@ try:
             fridge.purchase_price = Decimal("7000.00")
             fridge.image_url = fridge_img
 
+        # Seed wireframe Chart of Accounts & Journals
+        from app.models.account import Account
+        from app.models.journal import Journal
+
+        acc_definitions = [
+            {"name": "Bank A/c", "code": "1001", "type": "asset", "desc": "Bank"},
+            {"name": "Purchase Expense A/c", "code": "5001", "type": "expense", "desc": "Expense"},
+            {"name": "Debtors A/c", "code": "1002", "type": "asset", "desc": "Assets"},
+            {"name": "Creditors A/c", "code": "2001", "type": "liability", "desc": "Liabilities"},
+            {"name": "Sales Income A/c", "code": "4001", "type": "income", "desc": "Income"},
+            {"name": "Cash A/c", "code": "1003", "type": "asset", "desc": "Assets"},
+            {"name": "Other Expense A/c", "code": "5002", "type": "expense", "desc": "Expense"},
+            {"name": "Capital A/c", "code": "3001", "type": "equity", "desc": "Capital"},
+        ]
+        acc_dict = {}
+        for a_def in acc_definitions:
+            ex_acc = db.query(Account).filter(Account.name == a_def["name"]).first()
+            if not ex_acc:
+                ex_acc = Account(
+                    name=a_def["name"],
+                    account_name=a_def["name"],
+                    code=a_def["code"],
+                    account_type=a_def["type"],
+                    description=a_def["desc"],
+                    is_active=True
+                )
+                db.add(ex_acc)
+                db.flush()
+            acc_dict[a_def["name"]] = ex_acc.id
+
+        j_definitions = [
+            {"name": "Sales", "type": "Sales", "account": "Sales Income A/c"},
+            {"name": "Purchase", "type": "Purchase", "account": "Purchase Expense A/c"},
+            {"name": "Bank", "type": "Bank", "account": "Bank A/c"},
+            {"name": "Cash", "type": "Cash", "account": "Cash A/c"},
+        ]
+        for j_def in j_definitions:
+            acc_id = acc_dict.get(j_def["account"])
+            ex_j = db.query(Journal).filter(Journal.journal_name == j_def["name"]).first()
+            if not ex_j and acc_id:
+                db.add(Journal(
+                    journal_name=j_def["name"],
+                    journal_type=j_def["type"],
+                    default_debit_account_id=acc_id,
+                    default_credit_account_id=acc_id,
+                    is_active=True
+                ))
+
         db.commit()
     except Exception as seed_err:
         db.rollback()

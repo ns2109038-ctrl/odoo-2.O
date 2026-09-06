@@ -1,38 +1,38 @@
 import { useState, useEffect } from "react";
-import { getJournals, getAccounts, createJournal, deleteJournal as deleteJournalApi } from "../lib/api.js";
+import {
+  getJournals,
+  getAccounts,
+  createJournal,
+  updateJournal,
+  deleteJournal as deleteJournalApi,
+} from "../lib/api.js";
 import Alert from "../components/ui/Alert.jsx";
 import {
   Book,
   Plus,
   Search,
   Trash2,
-  X,
-  Filter,
-  ShoppingCart,
-  Receipt,
-  Wallet,
-  Building2,
-  FileSpreadsheet,
-  CheckCircle2,
-  FolderPlus
+  Edit3,
+  Check,
+  ArrowLeft,
+  Layers,
+  BookOpen,
 } from "lucide-react";
 
-function Journals() {
+export default function Journals({ onNavigate }) {
   const [journals, setJournals] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("All"); // "All" | "Sales" | "Purchase" | "Cash" | "Bank"
-  const [showForm, setShowForm] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editJournalObj, setEditJournalObj] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
     type: "Sales",
-    shortCode: "",
-    defaultDebitAccountId: "",
-    defaultCreditAccountId: "",
+    defaultAccountId: "",
     status: "Active",
   });
 
@@ -40,20 +40,41 @@ function Journals() {
     setLoading(true);
     setError("");
     try {
-      const [jData, aData] = await Promise.all([
-        getJournals(),
-        getAccounts(),
-      ]);
-      const mapped = (jData || []).map((j) => ({
-        id: j.id,
-        code: j.journal_type ? j.journal_type.toUpperCase() : "GEN",
-        name: j.journal_name || "",
-        type: j.journal_type || "Sales",
-        shortCode: (j.journal_name || "").slice(0, 3).toUpperCase(),
-        status: j.is_active ? "Active" : "Inactive",
-      }));
+      const [jData, aData] = await Promise.all([getJournals(), getAccounts()]);
+      const accountsList = aData || [];
+      setAccounts(accountsList);
+
+      const rawJournals = Array.isArray(jData)
+        ? jData
+        : jData?.items || jData?.data || [];
+
+      const mapped = rawJournals.map((j) => {
+        return {
+          id: j.id,
+          name: j.journal_name || "",
+          type: j.journal_type || "Sales",
+          default_debit_account_id: j.default_debit_account_id,
+          default_credit_account_id: j.default_credit_account_id,
+          status: j.is_active ? "Active" : "Inactive",
+        };
+      });
+
+      // Priority sort matching wireframe pre-configured journals:
+      // 1. Sales | Sales | Sales Income A/c
+      // 2. Purchase | Purchase | Purchase Expense A/c
+      // 3. Bank | Bank | Bank A/c
+      // 4. Cash | Cash | Cash A/c
+      const priorityOrder = ["Sales", "Purchase", "Bank", "Cash"];
+      mapped.sort((a, b) => {
+        const idxA = priorityOrder.indexOf(a.name);
+        const idxB = priorityOrder.indexOf(b.name);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return (b.id || 0) - (a.id || 0);
+      });
+
       setJournals(mapped);
-      setAccounts(aData || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -65,63 +86,154 @@ function Journals() {
     loadData();
   }, []);
 
-  const filteredJournals = journals.filter((journal) => {
-    const matchesSearch =
-      journal.name.toLowerCase().includes(search.toLowerCase()) ||
-      journal.code.toLowerCase().includes(search.toLowerCase()) ||
-      journal.shortCode.toLowerCase().includes(search.toLowerCase());
-    const matchesType = filterType === "All" || journal.type.toLowerCase() === filterType.toLowerCase();
-    return matchesSearch && matchesType;
-  });
+  const resolveDefaultAccount = (journal) => {
+    const directNameMap = {
+      sales: "Sales Income A/c",
+      purchase: "Purchase Expense A/c",
+      bank: "Bank A/c",
+      cash: "Cash A/c",
+    };
 
-  const countSales = journals.filter((j) => j.type.toLowerCase() === "sales").length;
-  const countPurchase = journals.filter((j) => j.type.toLowerCase() === "purchase").length;
-  const countCash = journals.filter((j) => j.type.toLowerCase() === "cash").length;
-  const countBank = journals.filter((j) => j.type.toLowerCase() === "bank").length;
+    const normName = (journal.name || "").toLowerCase().trim();
+    const normType = (journal.type || "").toLowerCase().trim();
 
-  const handleChange = (e) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
+    let targetId = journal.default_debit_account_id;
+    if (normType === "sales" && journal.default_credit_account_id) {
+      targetId = journal.default_credit_account_id;
+    }
+
+    const found =
+      accounts.find((a) => a.id === targetId) ||
+      accounts.find((a) => a.id === journal.default_debit_account_id) ||
+      accounts.find((a) => a.id === journal.default_credit_account_id);
+
+    if (found) {
+      return found.name || found.account_name;
+    }
+
+    if (directNameMap[normName]) return directNameMap[normName];
+    if (directNameMap[normType]) return directNameMap[normType];
+
+    return "—";
   };
 
-  const addJournal = async (e) => {
-    e.preventDefault();
+  const filteredJournals = journals.filter((journal) => {
+    const accName = resolveDefaultAccount(journal);
+    const matchesSearch = `${journal.name} ${journal.type} ${accName}`
+      .toLowerCase()
+      .includes(search.toLowerCase());
+    return matchesSearch;
+  });
+
+  const openAddModal = () => {
+    setEditJournalObj(null);
+    // Find matching default account for 'Sales'
+    const salesAcc = accounts.find((a) =>
+      (a.name || a.account_name || "").toLowerCase().includes("sales income")
+    );
+    setForm({
+      name: "",
+      type: "Sales",
+      defaultAccountId: salesAcc?.id ? String(salesAcc.id) : (accounts[0]?.id ? String(accounts[0].id) : ""),
+      status: "Active",
+    });
+    setShowModal(true);
+  };
+
+  const openEditModal = (journal) => {
+    setEditJournalObj(journal);
+    let chosenAccId = journal.default_debit_account_id;
+    if (journal.type.toLowerCase() === "sales" && journal.default_credit_account_id) {
+      chosenAccId = journal.default_credit_account_id;
+    }
+    setForm({
+      name: journal.name,
+      type: journal.type,
+      defaultAccountId: chosenAccId ? String(chosenAccId) : "",
+      status: journal.status,
+    });
+    setShowModal(true);
+  };
+
+  const handleTypeChange = (newType) => {
+    // Smartly suggest default account matching type
+    let targetAcc = null;
+    if (newType === "Sales") {
+      targetAcc = accounts.find((a) =>
+        (a.name || a.account_name || "").toLowerCase().includes("sales income")
+      );
+    } else if (newType === "Purchase") {
+      targetAcc = accounts.find((a) =>
+        (a.name || a.account_name || "").toLowerCase().includes("purchase expense")
+      );
+    } else if (newType === "Bank") {
+      targetAcc = accounts.find((a) =>
+        (a.name || a.account_name || "").toLowerCase().includes("bank")
+      );
+    } else if (newType === "Cash") {
+      targetAcc = accounts.find((a) =>
+        (a.name || a.account_name || "").toLowerCase().includes("cash")
+      );
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      type: newType,
+      defaultAccountId: targetAcc?.id ? String(targetAcc.id) : prev.defaultAccountId,
+    }));
+  };
+
+  const saveJournal = async (e) => {
+    if (e) e.preventDefault();
 
     if (!form.name.trim()) {
       alert("Please enter Journal Name");
       return;
     }
 
-    let debitId = form.defaultDebitAccountId ? Number(form.defaultDebitAccountId) : accounts[0]?.id;
-    let creditId = form.defaultCreditAccountId ? Number(form.defaultCreditAccountId) : accounts[1]?.id || accounts[0]?.id;
+    let defaultAccId = form.defaultAccountId
+      ? Number(form.defaultAccountId)
+      : accounts[0]?.id;
 
-    if (!debitId || !creditId) {
-      alert("Please ensure default debit and credit accounts exist in Chart of Accounts first.");
+    if (!defaultAccId) {
+      alert("Please select a Default Account from Chart of Accounts.");
       return;
+    }
+
+    let debitId = defaultAccId;
+    let creditId = defaultAccId;
+
+    if (form.type === "Sales") {
+      creditId = defaultAccId;
+      const debtors = accounts.find((a) =>
+        (a.name || a.account_name || "").toLowerCase().includes("debtors")
+      );
+      debitId = debtors?.id || defaultAccId;
+    } else if (form.type === "Purchase") {
+      debitId = defaultAccId;
+      const creditors = accounts.find((a) =>
+        (a.name || a.account_name || "").toLowerCase().includes("creditors")
+      );
+      creditId = creditors?.id || defaultAccId;
     }
 
     setSubmitting(true);
     try {
-      await createJournal({
+      const payload = {
         journal_name: form.name.trim(),
         journal_type: form.type,
         default_debit_account_id: debitId,
         default_credit_account_id: creditId,
         is_active: form.status === "Active",
-      });
+      };
 
-      setForm({
-        name: "",
-        type: "Sales",
-        shortCode: "",
-        defaultDebitAccountId: "",
-        defaultCreditAccountId: "",
-        status: "Active",
-      });
+      if (!editJournalObj) {
+        await createJournal(payload);
+      } else {
+        await updateJournal(editJournalObj.id, payload);
+      }
 
-      setShowForm(false);
+      setShowModal(false);
       await loadData();
     } catch (err) {
       alert(err.message);
@@ -136,14 +248,14 @@ function Journals() {
 
     try {
       await deleteJournalApi(id);
-      setJournals(journals.filter((journal) => journal.id !== id));
+      setJournals((prev) => prev.filter((journal) => journal.id !== id));
     } catch (err) {
       alert(err.message);
     }
   };
 
-  const getTypeTheme = (type) => {
-    switch (type.toLowerCase()) {
+  const getTypeStyle = (type) => {
+    switch ((type || "").toLowerCase()) {
       case "sales":
         return { bg: "#e6f4fe", text: "#0284c7" };
       case "purchase":
@@ -158,202 +270,282 @@ function Journals() {
   };
 
   return (
-    <div className="module-page">
-      {/* PAGE HEADER */}
-      <div className="page-header" style={{ marginBottom: "20px" }}>
-        <div>
-          <p className="breadcrumb">Masters / Journals</p>
-          <h1 style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <Book size={26} style={{ color: "#48acf0" }} /> Accounting Journals
-          </h1>
-          <p className="subtitle">
-            Manage sales, purchases, cash, bank and general entry transaction journals.
-          </p>
+    <div className="module-page" style={{ padding: "20px 24px" }}>
+      {/* ── TOP BAR (Matching wireframe: [New] | [Search] | [Back]) ── */}
+      <div
+        className="journal-topbar"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #cbd5e1",
+          marginBottom: "20px",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Left: [New] Button */}
+        <button
+          type="button"
+          onClick={openAddModal}
+          style={{
+            background: "#0284c7",
+            color: "#ffffff",
+            border: "none",
+            padding: "8px 20px",
+            borderRadius: "8px",
+            fontSize: "13.5px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
+          }}
+        >
+          <Plus size={16} /> New
+        </button>
+
+        {/* Center: Search input */}
+        <div style={{ position: "relative", flex: 1, minWidth: "220px", maxWidth: "420px" }}>
+          <Search
+            size={15}
+            style={{
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search journal name, type, default account..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              height: "36px",
+              paddingLeft: "36px",
+              paddingRight: "14px",
+              borderRadius: "8px",
+              border: "1px solid #cbd5e1",
+              outline: "none",
+              fontSize: "13px",
+              background: "#f8fafc",
+            }}
+          />
         </div>
 
-        <button
-          className="primary-btn"
-          onClick={() => setShowForm(true)}
-          style={{ display: "flex", alignItems: "center", gap: "6px" }}
-        >
-          <FolderPlus size={16} /> Add Journal
-        </button>
+        {/* Right: [Back] Button matching wireframe */}
+        <div style={{ marginLeft: "auto" }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigate) onNavigate("Dashboard");
+            }}
+            style={{
+              background: "#ffffff",
+              border: "1.5px solid #cbd5e1",
+              color: "#334155",
+              padding: "7px 18px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+        </div>
       </div>
 
       {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
-      {/* KPI SUMMARY CARDS */}
-      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: "20px" }}>
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#0284c7", fontWeight: "700", textTransform: "uppercase" }}>Sales Journals</span>
-            <ShoppingCart size={16} style={{ color: "#0284c7" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countSales}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Customer Invoices & Orders</p>
-        </div>
-
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#c2410c", fontWeight: "700", textTransform: "uppercase" }}>Purchase Journals</span>
-            <Receipt size={16} style={{ color: "#c2410c" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countPurchase}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Vendor Bills & Expenses</p>
-        </div>
-
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#166534", fontWeight: "700", textTransform: "uppercase" }}>Cash Journals</span>
-            <Wallet size={16} style={{ color: "#166534" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countCash}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Petty Cash & Hand Cash</p>
-        </div>
-
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#7e22ce", fontWeight: "700", textTransform: "uppercase" }}>Bank Journals</span>
-            <Building2 size={16} style={{ color: "#7e22ce" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countBank}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Bank Ledger Accounts</p>
-        </div>
-      </div>
-
-      {/* SEARCH TOOLBAR & TYPE FILTERS */}
-      <div className="module-toolbar" style={{
-        background: "#ffffff", padding: "14px 20px", borderRadius: "12px",
-        border: "1px solid rgba(204, 221, 226, 0.7)", marginBottom: "20px",
-        display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: "280px" }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: "380px" }}>
-            <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#93a3bc" }} />
-            <input
-              type="text"
-              placeholder="Search journal name, type, short code..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: "100%", height: "38px", paddingLeft: "36px", paddingRight: "14px",
-                borderRadius: "8px", border: "1px solid #93a3bc", outline: "none", fontSize: "13px",
-                background: "#f4f8fb"
-              }}
-            />
+      {/* ── JOURNALS (LIST VIEW) TABLE MATCHING WIREFRAME ── */}
+      <div
+        className="journal-list-card"
+        style={{
+          background: "#ffffff",
+          borderRadius: "12px",
+          border: "1px solid #cbd5e1",
+          boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: "1.5px solid #e2e8f0",
+            background: "#f8fafc",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "8px",
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>
+              Journals (List View)
+            </h2>
+            <p style={{ margin: "3px 0 0", fontSize: "12px", color: "#64748b" }}>
+              Pre-configured accounting journals with default ledger accounts
+            </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <Filter size={15} style={{ color: "#6f584b" }} />
-            {["All", "Sales", "Purchase", "Cash", "Bank"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setFilterType(t)}
-                style={{
-                  border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px",
-                  fontWeight: "600", cursor: "pointer",
-                  background: filterType === t ? "#48acf0" : "#f4f8fb",
-                  color: filterType === t ? "#ffffff" : "#594236",
-                  transition: "all 0.15s ease"
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              color: "#64748b",
+              background: "#e2e8f0",
+              padding: "4px 12px",
+              borderRadius: "12px",
+            }}
+          >
+            {filteredJournals.length} Journals
+          </span>
         </div>
 
-        <div style={{ fontSize: "13px", color: "#6f584b" }}>
-          Showing: <strong>{filteredJournals.length}</strong> of <strong>{journals.length}</strong>
-        </div>
-      </div>
-
-      {/* TABLE */}
-      <div className="module-card" style={{
-        background: "#ffffff", borderRadius: "12px", border: "1px solid rgba(204, 221, 226, 0.8)",
-        boxShadow: "0 4px 16px rgba(89, 66, 54, 0.05)", overflow: "hidden"
-      }}>
-        <div className="table-wrapper" style={{ overflowX: "auto" }}>
-          <table className="data-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table
+            className="data-table"
+            style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13.5px" }}
+          >
             <thead>
-              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #ccdde2", color: "#594236", fontWeight: "700" }}>
-                <th style={{ padding: "14px 18px", width: "110px" }}>Journal Code</th>
-                <th style={{ padding: "14px 18px" }}>Journal Name</th>
-                <th style={{ padding: "14px 18px" }}>Type</th>
-                <th style={{ padding: "14px 18px" }}>Short Code</th>
-                <th style={{ padding: "14px 18px" }}>Status</th>
-                <th style={{ padding: "14px 18px", textAlign: "right" }}>Action</th>
+              <tr style={{ background: "#ffffff", borderBottom: "2px solid #cbd5e1", color: "#334155", fontWeight: 800 }}>
+                <th style={{ padding: "14px 20px" }}>Journal Name</th>
+                <th style={{ padding: "14px 20px" }}>Type</th>
+                <th style={{ padding: "14px 20px" }}>Default Account</th>
+                <th style={{ padding: "14px 20px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="empty-state" style={{ textAlign: "center", padding: "40px", color: "#93a3bc" }}>
-                    Loading journals...
+                  <td colSpan="4" style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                    Loading accounting journals...
                   </td>
                 </tr>
               ) : filteredJournals.length > 0 ? (
                 filteredJournals.map((journal) => {
-                  const tTheme = getTypeTheme(journal.type);
+                  const styleTheme = getTypeStyle(journal.type);
+                  const defaultAccName = resolveDefaultAccount(journal);
                   return (
-                    <tr key={journal.id} style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s" }}>
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{
-                          background: "rgba(89, 66, 54, 0.08)", color: "#594236", padding: "4px 8px",
-                          borderRadius: "6px", fontFamily: "monospace", fontWeight: "700", fontSize: "12px"
-                        }}>
-                          {journal.code}
+                    <tr
+                      key={journal.id}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
+                    >
+                      {/* Journal Name (Clickable link) */}
+                      <td style={{ padding: "14px 20px" }}>
+                        <span
+                          onClick={() => openEditModal(journal)}
+                          title="Click to view & edit journal master"
+                          style={{
+                            fontWeight: 700,
+                            color: "#0284c7",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            textUnderlineOffset: "3px",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {journal.name}
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px", color: "#594236", fontWeight: "700" }}>
-                        {journal.name}
-                      </td>
-
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{
-                          padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "700",
-                          background: tTheme.bg, color: tTheme.text
-                        }}>
+                      {/* Type */}
+                      <td style={{ padding: "14px 20px" }}>
+                        <span
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            background: styleTheme.bg,
+                            color: styleTheme.text,
+                          }}
+                        >
                           {journal.type}
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px", color: "#6f584b", fontFamily: "monospace", fontWeight: "600" }}>
-                        {journal.shortCode}
-                      </td>
-
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{
-                          padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "700",
-                          background: journal.status === "Active" ? "#f0fdf4" : "#fef2f2",
-                          color: journal.status === "Active" ? "#166534" : "#991b1b"
-                        }}>
-                          {journal.status}
+                      {/* Default Account */}
+                      <td style={{ padding: "14px 20px", color: "#0f172a", fontWeight: 600 }}>
+                        <span
+                          style={{
+                            background: "#f1f5f9",
+                            padding: "4px 10px",
+                            borderRadius: "6px",
+                            border: "1px solid #e2e8f0",
+                            fontSize: "13px",
+                          }}
+                        >
+                          {defaultAccName}
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px", textAlign: "right" }}>
-                        <button
-                          className="delete-btn"
-                          onClick={() => deleteJournal(journal.id)}
-                          style={{
-                            background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5",
-                            padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: "600",
-                            cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px"
-                          }}
-                        >
-                          <Trash2 size={13} /> Delete
-                        </button>
+                      {/* Actions */}
+                      <td style={{ padding: "14px 20px", textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: "6px" }}>
+                          <button
+                            onClick={() => openEditModal(journal)}
+                            title="Edit Journal"
+                            style={{
+                              background: "#f0f9ff",
+                              color: "#0284c7",
+                              border: "1px solid #bae6fd",
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "3px",
+                              fontSize: "12px",
+                              fontWeight: 600,
+                            }}
+                          >
+                            <Edit3 size={12} /> Edit
+                          </button>
+                          <button
+                            onClick={() => deleteJournal(journal.id)}
+                            title="Delete Journal"
+                            style={{
+                              background: "#fef2f2",
+                              color: "#dc2626",
+                              border: "1px solid #fca5a5",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              fontSize: "12px",
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan="6" className="empty-state" style={{ textAlign: "center", padding: "40px", color: "#93a3bc" }}>
-                    No matching accounting journals found.
+                  <td colSpan="4" style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                    No accounting journals found.
                   </td>
                 </tr>
               )}
@@ -362,172 +554,267 @@ function Journals() {
         </div>
       </div>
 
-      {/* ADD JOURNAL MODAL */}
-      {showForm && (
+      {/* ── JOURNAL MASTER FORM VIEW MODAL (When Clicking on New) ── */}
+      {showModal && (
         <div
           className="modal-overlay"
-          onClick={() => setShowForm(false)}
+          onClick={() => setShowModal(false)}
           style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(15, 23, 42, 0.5)", backdropFilter: "blur(4px)",
-            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px"
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
           }}
         >
           <div
-            className="modal-box"
+            className="journal-master-modal"
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "#ffffff", borderRadius: "14px", width: "100%", maxWidth: "560px",
-              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)", overflow: "hidden", border: "1px solid #ccdde2"
+              background: "#ffffff",
+              borderRadius: "14px",
+              width: "100%",
+              maxWidth: "540px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              overflow: "hidden",
+              border: "1px solid #cbd5e1",
             }}
           >
-            <div className="modal-header" style={{
-              background: "linear-gradient(135deg, #594236, #6f584b)", color: "#ffffff",
-              padding: "18px 24px", display: "flex", justifyContent: "space-between", alignItems: "center"
-            }}>
-              <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px" }}>
-                <FolderPlus size={18} style={{ color: "#48acf0" }} /> Create New Accounting Journal
-              </h2>
+            {/* Modal Top Bar matching wireframe: [New] [Confirm] on left, [Back] on right */}
+            <div
+              style={{
+                background: "#0f172a",
+                padding: "14px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "10px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditJournalObj(null);
+                    setForm({
+                      name: "",
+                      type: "Sales",
+                      defaultAccountId: accounts[0]?.id ? String(accounts[0].id) : "",
+                      status: "Active",
+                    });
+                  }}
+                  style={{
+                    background: "#334155",
+                    border: "none",
+                    color: "#ffffff",
+                    padding: "7px 16px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  New
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveJournal}
+                  disabled={submitting}
+                  style={{
+                    background: "#0284c7",
+                    border: "none",
+                    color: "#ffffff",
+                    padding: "7px 18px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    boxShadow: "0 2px 6px rgba(2, 132, 199, 0.4)",
+                  }}
+                >
+                  <Check size={14} /> {submitting ? "Saving..." : "Confirm"}
+                </button>
+              </div>
+
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#38bdf8" }}>
+                Journal Master Form View
+              </span>
 
               <button
-                className="close-btn"
-                onClick={() => setShowForm(false)}
-                style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer" }}
+                type="button"
+                onClick={() => setShowModal(false)}
+                style={{
+                  background: "transparent",
+                  border: "1.5px solid rgba(255, 255, 255, 0.35)",
+                  color: "#ffffff",
+                  padding: "6px 16px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
               >
-                <X size={20} />
+                <ArrowLeft size={13} /> Back
               </button>
             </div>
 
-            <form onSubmit={addJournal} style={{ padding: "24px" }}>
-              <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                <div className="form-group" style={{ gridColumn: "span 2" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                    Journal Name *
+            {/* Form Body with wireframe underlined inputs */}
+            <form onSubmit={saveJournal} style={{ padding: "28px 24px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+                {/* Journal Name */}
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <label
+                    style={{
+                      width: "130px",
+                      fontSize: "13.5px",
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Journal Name
                   </label>
                   <input
                     name="name"
                     value={form.name}
-                    onChange={handleChange}
-                    placeholder="e.g. Domestic Sales Journal / HDFC Bank Journal"
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="e.g. Sales, Purchase, Bank, Cash..."
                     required
+                    autoFocus
                     style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none"
+                      flex: 1,
+                      border: "none",
+                      borderBottom: "2px solid #cbd5e1",
+                      borderRadius: 0,
+                      padding: "6px 4px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      outline: "none",
+                      background: "transparent",
+                      transition: "border-color 0.2s",
                     }}
+                    onFocus={(e) => (e.target.style.borderBottomColor = "#0284c7")}
+                    onBlur={(e) => (e.target.style.borderBottomColor = "#cbd5e1")}
                   />
                 </div>
 
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
+                {/* Journal Type (Selection from Sales, Purchase, Bank, Cash) */}
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <label
+                    style={{
+                      width: "130px",
+                      fontSize: "13.5px",
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      flexShrink: 0,
+                    }}
+                  >
                     Journal Type
                   </label>
                   <select
-                    name="type"
                     value={form.type}
-                    onChange={handleChange}
+                    onChange={(e) => handleTypeChange(e.target.value)}
                     style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
+                      flex: 1,
+                      border: "none",
+                      borderBottom: "2px solid #cbd5e1",
+                      borderRadius: 0,
+                      padding: "6px 4px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      outline: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      transition: "border-color 0.2s",
                     }}
+                    onFocus={(e) => (e.target.style.borderBottomColor = "#0284c7")}
+                    onBlur={(e) => (e.target.style.borderBottomColor = "#cbd5e1")}
                   >
                     <option value="Sales">Sales</option>
                     <option value="Purchase">Purchase</option>
-                    <option value="Cash">Cash</option>
                     <option value="Bank">Bank</option>
+                    <option value="Cash">Cash</option>
                   </select>
                 </div>
 
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={form.status}
-                    onChange={handleChange}
+                {/* Default Account (From Chart of Accounts Many to one) */}
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <label
                     style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
+                      width: "130px",
+                      fontSize: "13.5px",
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      flexShrink: 0,
                     }}
                   >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ gridColumn: "span 2" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                    Default Debit Account
+                    Default Account
                   </label>
                   <select
-                    name="defaultDebitAccountId"
-                    value={form.defaultDebitAccountId}
-                    onChange={handleChange}
+                    value={form.defaultAccountId}
+                    onChange={(e) => setForm({ ...form, defaultAccountId: e.target.value })}
+                    required
                     style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
+                      flex: 1,
+                      border: "none",
+                      borderBottom: "2px solid #cbd5e1",
+                      borderRadius: 0,
+                      padding: "6px 4px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      outline: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      transition: "border-color 0.2s",
                     }}
+                    onFocus={(e) => (e.target.style.borderBottomColor = "#0284c7")}
+                    onBlur={(e) => (e.target.style.borderBottomColor = "#cbd5e1")}
                   >
-                    <option value="">— Select Account —</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} - {a.name || a.account_name}
+                    <option value="">— Select from Chart of Accounts —</option>
+                    {accounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name || acc.account_name} ({acc.account_type || acc.type || "Account"})
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="form-group" style={{ gridColumn: "span 2" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                    Default Credit Account
-                  </label>
-                  <select
-                    name="defaultCreditAccountId"
-                    value={form.defaultCreditAccountId}
-                    onChange={handleChange}
-                    style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
-                    }}
-                  >
-                    <option value="">— Select Account —</option>
-                    {accounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.code} - {a.name || a.account_name}
-                      </option>
-                    ))}
-                  </select>
+                {/* Wireframe Annotation Note */}
+                <div
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px dashed #94a3b8",
+                    borderRadius: "10px",
+                    padding: "14px 16px",
+                    marginTop: "8px",
+                  }}
+                >
+                  <p style={{ margin: "0 0 6px 0", fontSize: "12px", color: "#475569", lineHeight: 1.5 }}>
+                    <strong style={{ color: "#0284c7" }}>Journal Type:</strong> Select from{" "}
+                    <strong>Sales</strong>, <strong>Purchase</strong>, <strong>Bank</strong>, or <strong>Cash</strong>.
+                  </p>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#475569", lineHeight: 1.5 }}>
+                    <strong style={{ color: "#0284c7" }}>Default Account:</strong> Linked Many-to-One
+                    from <strong>Chart of Accounts</strong> for automatic ledger postings.
+                  </p>
                 </div>
-              </div>
-
-              <div className="form-actions" style={{
-                display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingTop: "16px",
-                borderTop: "1px solid #e2e8f0"
-              }}>
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() => setShowForm(false)}
-                  disabled={submitting}
-                  style={{
-                    background: "#ffffff", border: "1px solid #93a3bc", color: "#594236",
-                    padding: "9px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: "600", cursor: "pointer"
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="primary-btn"
-                  disabled={submitting}
-                  style={{
-                    background: "#48acf0", border: "none", color: "#ffffff",
-                    padding: "9px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer"
-                  }}
-                >
-                  {submitting ? "Saving..." : "Save Journal"}
-                </button>
               </div>
             </form>
           </div>
@@ -536,5 +823,3 @@ function Journals() {
     </div>
   );
 }
-
-export default Journals;

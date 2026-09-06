@@ -242,8 +242,8 @@ function App() {
     if (activePage === "Dashboard")          return <Dashboard authUser={authUser} onNavigate={handleNavigate} />;
     if (activePage === "Contacts")           return <Contacts onNavigate={handleNavigate} />;
     if (activePage === "Products")           return <Products onNavigate={handleNavigate} />;
-    if (activePage === "Chart of Accounts")  return <Accounts />;
-    if (activePage === "Journals")           return <Journals />;
+    if (activePage === "Chart of Accounts")  return <Accounts onNavigate={handleNavigate} />;
+    if (activePage === "Journals")           return <Journals onNavigate={handleNavigate} />;
     if (activePage === "Journal Entries")   return <JournalEntries />;
     if (activePage === "Budget")             return <Budget />;
     if (activePage === "Sales")              return <Sales initialTab={activeSubTab || "orders"} />;
