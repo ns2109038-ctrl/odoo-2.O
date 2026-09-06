@@ -8,18 +8,17 @@ import {
   Edit3,
   Trash2,
   X,
-  Filter,
+  Home,
+  ArrowLeft,
+  Check,
+  Archive,
   Layers,
-  PieChart,
-  DollarSign,
-  TrendingUp,
-  CreditCard,
   FileSpreadsheet
 } from "lucide-react";
 
-function Accounts() {
+export default function Accounts({ onNavigate }) {
   const [search, setSearch] = useState("");
-  const [filterType, setFilterType] = useState("All"); // "All" | "Assets" | "Liabilities" | "Equity" | "Income" | "Expenses"
+  const [showArchived, setShowArchived] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editAccountObj, setEditAccountObj] = useState(null);
   const [accounts, setAccounts] = useState([]);
@@ -30,9 +29,8 @@ function Accounts() {
   const [form, setForm] = useState({
     code: "",
     name: "",
-    type: "Assets",
-    group: "Current Assets",
-    balance: "",
+    type: "Asset",
+    group: "",
     status: "Active",
   });
 
@@ -41,22 +39,71 @@ function Accounts() {
     setError("");
     try {
       const data = await getAccounts();
-      const typeMap = {
+      const typeDisplayMap = {
         asset: "Assets",
+        assets: "Assets",
+        bank: "Assets",
+        cash: "Assets",
         liability: "Liabilities",
-        equity: "Equity",
+        liabilities: "Liabilities",
+        equity: "Capital",
+        capital: "Capital",
         income: "Income",
-        expense: "Expenses",
+        expense: "Expense",
+        expenses: "Expense",
+        "other expense": "Expense",
+        "other expenses": "Expense",
       };
-      const mapped = (data || []).map((a) => ({
-        id: a.id,
-        code: a.code,
-        name: a.name || a.account_name || "",
-        type: typeMap[a.account_type?.toLowerCase()] || a.account_type || "Assets",
-        group: a.description || (typeMap[a.account_type?.toLowerCase()] ? `${typeMap[a.account_type?.toLowerCase()]} Group` : "General"),
-        balance: 0,
-        status: a.is_active ? "Active" : "Inactive",
-      }));
+
+      const mapped = (data || []).map((a) => {
+        let rawType = (a.account_type || "").toLowerCase();
+        let displayType = typeDisplayMap[rawType] || a.account_type || "Assets";
+        if (a.name === "Capital A/c") displayType = "Capital";
+        if (a.name === "Debtors A/c" || a.name === "Bank A/c" || a.name === "Cash A/c") displayType = "Assets";
+        if (a.name === "Creditors A/c") displayType = "Liabilities";
+        if (a.name === "Purchase Expense A/c" || a.name === "Other Expense A/c") displayType = "Expense";
+        if (a.name === "Sales Income A/c") displayType = "Income";
+
+        return {
+          id: a.id,
+          code: a.code,
+          name: a.name || a.account_name || "",
+          type: displayType,
+          rawType: a.account_type,
+          group: a.description || "",
+          status: a.is_active ? "Active" : "Archived",
+        };
+      });
+
+      // Priority sort matching wireframe pre-configured accounts:
+      // 1. Bank A/c | Assets
+      // 2. Purchase Expense A/c | Expense
+      // 3. Debtors A/c | Assets
+      // 4. Creditors A/c | Liabilities
+      // 5. Sales Income A/c | Income
+      // 6. Cash A/c | Assets
+      // 7. Other Expense A/c | Expense
+      // 8. Capital A/c | Capital
+      const priorityOrder = [
+        "Bank A/c",
+        "Purchase Expense A/c",
+        "Debtors A/c",
+        "Creditors A/c",
+        "Sales Income A/c",
+        "Cash A/c",
+        "Other Expense A/c",
+        "Capital A/c",
+      ];
+
+      mapped.sort((a, b) => {
+        const idxA = priorityOrder.indexOf(a.name);
+        const idxB = priorityOrder.indexOf(b.name);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return (b.id || 0) - (a.id || 0);
+      });
+
       setAccounts(mapped);
     } catch (err) {
       setError(err.message);
@@ -73,24 +120,17 @@ function Accounts() {
     const matchesSearch = `${account.code} ${account.name} ${account.type} ${account.group}`
       .toLowerCase()
       .includes(search.toLowerCase());
-    const matchesType = filterType === "All" || account.type.toLowerCase() === filterType.toLowerCase();
-    return matchesSearch && matchesType;
+    const matchesArchive = showArchived ? true : account.status === "Active";
+    return matchesSearch && matchesArchive;
   });
-
-  const countAssets = accounts.filter((a) => a.type === "Assets").length;
-  const countLiabilities = accounts.filter((a) => a.type === "Liabilities").length;
-  const countEquity = accounts.filter((a) => a.type === "Equity").length;
-  const countIncome = accounts.filter((a) => a.type === "Income").length;
-  const countExpenses = accounts.filter((a) => a.type === "Expenses").length;
 
   const openAddModal = () => {
     setEditAccountObj(null);
     setForm({
-      code: "",
+      code: "ACC-" + Math.random().toString(36).substring(2, 6).toUpperCase(),
       name: "",
-      type: "Assets",
-      group: "Current Assets",
-      balance: "",
+      type: "Asset",
+      group: "",
       status: "Active",
     });
     setShowModal(true);
@@ -103,7 +143,6 @@ function Accounts() {
       name: account.name,
       type: account.type,
       group: account.group,
-      balance: account.balance,
       status: account.status,
     });
     setShowModal(true);
@@ -117,28 +156,34 @@ function Accounts() {
   };
 
   const saveAccount = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
 
-    if (!form.code.trim() || !form.name.trim()) {
-      alert("Please enter Account Code and Account Name");
+    if (!form.name.trim()) {
+      alert("Please enter Account Name");
       return;
     }
 
-    const typeReverseMap = {
-      Assets: "asset",
-      Liabilities: "liability",
-      Equity: "equity",
+    const typeBackendMap = {
+      Asset: "asset",
+      Liability: "liability",
+      Bank: "asset",
+      Capital: "equity",
+      Cash: "asset",
       Income: "income",
       Expenses: "expense",
+      "Other Expenses": "expense",
+      Assets: "asset",
+      Liabilities: "liability",
+      Expense: "expense",
     };
 
     setSubmitting(true);
     try {
       const payload = {
-        code: form.code.trim(),
+        code: form.code.trim() || ("ACC-" + Math.random().toString(36).substring(2, 6).toUpperCase()),
         name: form.name.trim(),
-        account_type: typeReverseMap[form.type] || form.type.toLowerCase(),
-        description: form.group || null,
+        account_type: typeBackendMap[form.type] || "asset",
+        description: form.type,
         is_active: form.status === "Active",
       };
 
@@ -190,142 +235,230 @@ function Accounts() {
 
   return (
     <div className="module-page">
-      {/* HEADER */}
-      <div className="page-header" style={{ marginBottom: "20px" }}>
-        <div>
-          <p className="breadcrumb">Masters / Chart of Accounts</p>
-          <h1 style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <BookOpen size={26} style={{ color: "#48acf0" }} /> Chart of Accounts
-          </h1>
-          <p className="subtitle">
-            Manage general ledger accounting accounts, classification hierarchy and account groups.
-          </p>
+      {/* ── TOP BAR (Matching wireframe: [New] [Confirm] [Archived] | [Search] | [Home] [Back]) ── */}
+      <div
+        className="account-topbar"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #cbd5e1",
+          marginBottom: "20px",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Left Action Buttons: [New] [Confirm] [Archived] */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            onClick={openAddModal}
+            style={{
+              background: "#0284c7",
+              color: "#ffffff",
+              border: "none",
+              padding: "7px 18px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
+            }}
+          >
+            <Plus size={15} /> New
+          </button>
+
+          <button
+            type="button"
+            onClick={() => alert("Chart of Accounts configuration confirmed.")}
+            style={{
+              background: "#ffffff",
+              border: "1.5px solid #cbd5e1",
+              color: "#334155",
+              padding: "7px 16px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            <Check size={14} color="#166534" /> Confirm
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowArchived(!showArchived)}
+            style={{
+              background: showArchived ? "#eff6ff" : "#ffffff",
+              border: showArchived ? "1.5px solid #3b82f6" : "1.5px solid #cbd5e1",
+              color: showArchived ? "#1d4ed8" : "#64748b",
+              padding: "7px 16px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            <Archive size={14} /> {showArchived ? "All Accounts" : "Archived"}
+          </button>
         </div>
 
-        <button className="primary-btn" onClick={openAddModal} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <Plus size={16} /> New Account
-        </button>
+        {/* Center: [Search] Bar */}
+        <div style={{ position: "relative", flex: 1, minWidth: "200px", maxWidth: "420px", marginLeft: "10px" }}>
+          <Search
+            size={15}
+            style={{
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search account name or type..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              height: "36px",
+              paddingLeft: "36px",
+              paddingRight: "14px",
+              borderRadius: "8px",
+              border: "1px solid #cbd5e1",
+              outline: "none",
+              fontSize: "13px",
+              background: "#f8fafc",
+            }}
+          />
+        </div>
+
+        {/* Right Action Buttons: [Home] [Back] */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigate) onNavigate("Dashboard");
+            }}
+            style={{
+              background: "#ffffff",
+              border: "1.5px solid #cbd5e1",
+              color: "#334155",
+              padding: "7px 16px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            <Home size={14} /> Home
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onNavigate) onNavigate("Dashboard");
+            }}
+            style={{
+              background: "#ffffff",
+              border: "1.5px solid #cbd5e1",
+              color: "#334155",
+              padding: "7px 16px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+            }}
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+        </div>
       </div>
 
       {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
-      {/* ACCOUNT SUMMARY CARDS */}
-      <div className="stats-grid" style={{ gridTemplateColumns: "repeat(5, 1fr)", marginBottom: "20px" }}>
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#93a3bc", fontWeight: "700", textTransform: "uppercase" }}>Total</span>
-            <FileSpreadsheet size={16} style={{ color: "#48acf0" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{accounts.length}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Active Ledger Accounts</p>
-        </div>
-
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#0284c7", fontWeight: "700", textTransform: "uppercase" }}>Assets</span>
-            <Layers size={16} style={{ color: "#0284c7" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countAssets}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Current & Fixed Assets</p>
-        </div>
-
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#7e22ce", fontWeight: "700", textTransform: "uppercase" }}>Liabilities</span>
-            <CreditCard size={16} style={{ color: "#7e22ce" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countLiabilities}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Payables & Loans</p>
-        </div>
-
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#166534", fontWeight: "700", textTransform: "uppercase" }}>Income</span>
-            <TrendingUp size={16} style={{ color: "#166534" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countIncome}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Sales & Revenue</p>
-        </div>
-
-        <div className="stat-card" style={{ padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "11px", color: "#c2410c", fontWeight: "700", textTransform: "uppercase" }}>Expenses</span>
-            <PieChart size={16} style={{ color: "#c2410c" }} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: "22px", color: "#594236", fontWeight: "800" }}>{countExpenses}</h2>
-          <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#6f584b" }}>Operating Expenses</p>
-        </div>
-      </div>
-
-      {/* SEARCH TOOLBAR & FILTER BUTTONS */}
-      <div className="module-toolbar" style={{
-        background: "#ffffff", padding: "14px 20px", borderRadius: "12px",
-        border: "1px solid rgba(204, 221, 226, 0.7)", marginBottom: "20px",
-        display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: "300px" }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: "380px" }}>
-            <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#93a3bc" }} />
-            <input
-              type="text"
-              placeholder="Search account code, name or group..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: "100%", height: "38px", paddingLeft: "36px", paddingRight: "14px",
-                borderRadius: "8px", border: "1px solid #93a3bc", outline: "none", fontSize: "13px",
-                background: "#f4f8fb"
-              }}
-            />
+      {/* ── CHART OF ACCOUNTS (LIST VIEW) TABLE ── */}
+      <div
+        className="account-list-card"
+        style={{
+          background: "#ffffff",
+          borderRadius: "12px",
+          border: "1px solid #cbd5e1",
+          boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: "1.5px solid #e2e8f0",
+            background: "#f8fafc",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "8px",
+          }}
+        >
+          <div>
+            <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>
+              Chart of Accounts (List View)
+            </h2>
+            <p style={{ margin: "3px 0 0", fontSize: "12px", color: "#d97706", fontWeight: 600 }}>
+              All this accounts are to be pre configured
+            </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
-            <Filter size={15} style={{ color: "#6f584b" }} />
-            {["All", "Assets", "Liabilities", "Equity", "Income", "Expenses"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setFilterType(t)}
-                style={{
-                  border: "none", padding: "6px 12px", borderRadius: "6px", fontSize: "12px",
-                  fontWeight: "600", cursor: "pointer",
-                  background: filterType === t ? "#48acf0" : "#f4f8fb",
-                  color: filterType === t ? "#ffffff" : "#594236",
-                  transition: "all 0.15s ease"
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+          <span
+            style={{
+              fontSize: "12px",
+              fontWeight: 700,
+              color: "#64748b",
+              background: "#e2e8f0",
+              padding: "4px 12px",
+              borderRadius: "12px",
+            }}
+          >
+            {filteredAccounts.length} Accounts
+          </span>
         </div>
 
-        <div style={{ fontSize: "13px", color: "#6f584b" }}>
-          Showing: <strong>{filteredAccounts.length}</strong> of <strong>{accounts.length}</strong>
-        </div>
-      </div>
-
-      {/* MAIN TABLE */}
-      <div className="module-card" style={{
-        background: "#ffffff", borderRadius: "12px", border: "1px solid rgba(204, 221, 226, 0.8)",
-        boxShadow: "0 4px 16px rgba(89, 66, 54, 0.05)", overflow: "hidden"
-      }}>
-        <div className="responsive-table" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table
+            className="data-table"
+            style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13.5px" }}
+          >
             <thead>
-              <tr style={{ background: "#f8fafc", borderBottom: "1px solid #ccdde2", color: "#594236", fontWeight: "700" }}>
-                <th style={{ padding: "14px 18px", width: "120px" }}>Account Code</th>
-                <th style={{ padding: "14px 18px" }}>Account Name</th>
-                <th style={{ padding: "14px 18px" }}>Account Type</th>
-                <th style={{ padding: "14px 18px" }}>Account Group</th>
-                <th style={{ padding: "14px 18px" }}>Status</th>
-                <th style={{ padding: "14px 18px", textAlign: "right" }}>Actions</th>
+              <tr style={{ background: "#ffffff", borderBottom: "2px solid #cbd5e1", color: "#334155", fontWeight: 800 }}>
+                <th style={{ padding: "14px 20px" }}>Account Name</th>
+                <th style={{ padding: "14px 20px" }}>Type</th>
+                <th style={{ padding: "14px 20px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="empty-state" style={{ textAlign: "center", padding: "40px", color: "#93a3bc" }}>
+                  <td colSpan="3" style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
                     Loading chart of accounts...
                   </td>
                 </tr>
@@ -333,63 +466,87 @@ function Accounts() {
                 filteredAccounts.map((account) => {
                   const styleTheme = getTypeStyle(account.type);
                   return (
-                    <tr key={account.id} style={{ borderBottom: "1px solid #f1f5f9", transition: "background 0.15s" }}>
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{
-                          background: "rgba(89, 66, 54, 0.08)", color: "#594236", padding: "4px 8px",
-                          borderRadius: "6px", fontFamily: "monospace", fontWeight: "700", fontSize: "12px"
-                        }}>
-                          {account.code}
+                    <tr
+                      key={account.id}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
+                    >
+                      {/* Account Name (Clickable to open form view with saved details) */}
+                      <td style={{ padding: "14px 20px" }}>
+                        <span
+                          onClick={() => openEditModal(account)}
+                          title="Click to view & edit account master"
+                          style={{
+                            fontWeight: 700,
+                            color: "#0284c7",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            textUnderlineOffset: "3px",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {account.name}
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px", color: "#594236", fontWeight: "700" }}>
-                        {account.name}
-                      </td>
-
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{
-                          padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "700",
-                          background: styleTheme.bg, color: styleTheme.text
-                        }}>
+                      {/* Type matching wireframe */}
+                      <td style={{ padding: "14px 20px" }}>
+                        <span
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            background: styleTheme.bg,
+                            color: styleTheme.text,
+                          }}
+                        >
                           {account.type}
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px", color: "#6f584b" }}>{account.group}</td>
-
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{
-                          padding: "4px 10px", borderRadius: "12px", fontSize: "11px", fontWeight: "700",
-                          background: account.status === "Active" ? "#f0fdf4" : "#fef2f2",
-                          color: account.status === "Active" ? "#166534" : "#991b1b"
-                        }}>
-                          {account.status}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: "14px 18px", textAlign: "right" }}>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                      {/* Actions */}
+                      <td style={{ padding: "14px 20px", textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: "6px" }}>
                           <button
                             onClick={() => openEditModal(account)}
+                            title="Edit Account"
                             style={{
-                              background: "#f4f8fb", color: "#594236", border: "1px solid #93a3bc",
-                              padding: "5px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "600",
-                              cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px"
+                              background: "#f0f9ff",
+                              color: "#0284c7",
+                              border: "1px solid #bae6fd",
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "3px",
+                              fontSize: "12px",
+                              fontWeight: 600,
                             }}
                           >
-                            <Edit3 size={13} /> Edit
+                            <Edit3 size={12} /> Edit
                           </button>
-
                           <button
                             onClick={() => deleteAccount(account.id)}
+                            title="Delete Account"
                             style={{
-                              background: "#fef2f2", color: "#dc2626", border: "1px solid #fca5a5",
-                              padding: "5px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: "600",
-                              cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px"
+                              background: "#fef2f2",
+                              color: "#dc2626",
+                              border: "1px solid #fca5a5",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              fontSize: "12px",
                             }}
                           >
-                            <Trash2 size={13} /> Delete
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </td>
@@ -398,7 +555,7 @@ function Accounts() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="6" className="empty-state" style={{ textAlign: "center", padding: "40px", color: "#93a3bc" }}>
+                  <td colSpan="3" style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
                     No accounting ledger records found.
                   </td>
                 </tr>
@@ -408,174 +565,231 @@ function Accounts() {
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* ── ACCOUNT MASTER FORM VIEW MODAL (When clicking on new) ── */}
       {showModal && (
         <div
           className="modal-overlay"
           onClick={() => setShowModal(false)}
           style={{
-            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(15, 23, 42, 0.5)", backdropFilter: "blur(4px)",
-            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px"
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "20px",
           }}
         >
           <div
-            className="product-modal"
+            className="account-master-modal"
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "#ffffff", borderRadius: "14px", width: "100%", maxWidth: "560px",
-              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)", overflow: "hidden", border: "1px solid #ccdde2"
+              background: "#ffffff",
+              borderRadius: "14px",
+              width: "100%",
+              maxWidth: "540px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              overflow: "hidden",
+              border: "1px solid #cbd5e1",
             }}
           >
-            <div className="modal-header" style={{
-              background: "linear-gradient(135deg, #594236, #6f584b)", color: "#ffffff",
-              padding: "18px 24px", display: "flex", justifyContent: "space-between", alignItems: "center"
-            }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <BookOpen size={18} style={{ color: "#48acf0" }} />
-                  {!editAccountObj ? "Create New Ledger Account" : "Edit Ledger Account"}
-                </h2>
-                <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#ccdde2", opacity: 0.9 }}>
-                  Enter account code, type classification & group information
-                </p>
+            {/* Modal Top Bar matching wireframe: [New] [Confirm] on left, [Back] on right */}
+            <div
+              style={{
+                background: "#0f172a",
+                padding: "14px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "10px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditAccountObj(null);
+                    setForm({
+                      code: "ACC-" + Math.random().toString(36).substring(2, 6).toUpperCase(),
+                      name: "",
+                      type: "Asset",
+                      group: "",
+                      status: "Active",
+                    });
+                  }}
+                  style={{
+                    background: "#334155",
+                    border: "none",
+                    color: "#ffffff",
+                    padding: "7px 16px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  New
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveAccount}
+                  disabled={submitting}
+                  style={{
+                    background: "#0284c7",
+                    border: "none",
+                    color: "#ffffff",
+                    padding: "7px 18px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    boxShadow: "0 2px 6px rgba(2, 132, 199, 0.4)",
+                  }}
+                >
+                  <Check size={14} /> {submitting ? "Saving..." : "Confirm"}
+                </button>
               </div>
 
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#38bdf8" }}>
+                Account Master Form View
+              </span>
+
               <button
-                className="close-modal"
+                type="button"
                 onClick={() => setShowModal(false)}
-                style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer" }}
+                style={{
+                  background: "transparent",
+                  border: "1.5px solid rgba(255, 255, 255, 0.35)",
+                  color: "#ffffff",
+                  padding: "6px 16px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
               >
-                <X size={20} />
+                <ArrowLeft size={13} /> Back
               </button>
             </div>
 
-            <form onSubmit={saveAccount} style={{ padding: "24px" }}>
-              <div className="form-section">
-                <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                      Account Code *
-                    </label>
-                    <input
-                      name="code"
-                      value={form.code}
-                      onChange={handleChange}
-                      placeholder="e.g. 1001 / 2005"
-                      required
-                      style={{
-                        width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                        padding: "0 12px", fontSize: "13px", outline: "none", fontFamily: "monospace"
-                      }}
-                    />
-                  </div>
+            {/* Form Body with wireframe underlined inputs */}
+            <form onSubmit={saveAccount} style={{ padding: "28px 24px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+                {/* Account Name */}
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <label
+                    style={{
+                      width: "130px",
+                      fontSize: "13.5px",
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Account Name
+                  </label>
+                  <input
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="e.g. Bank A/c, Cash A/c..."
+                    required
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      border: "none",
+                      borderBottom: "2px solid #cbd5e1",
+                      borderRadius: 0,
+                      padding: "6px 4px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      outline: "none",
+                      background: "transparent",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderBottomColor = "#0284c7")}
+                    onBlur={(e) => (e.target.style.borderBottomColor = "#cbd5e1")}
+                  />
+                </div>
 
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                      Account Name *
-                    </label>
-                    <input
-                      name="name"
-                      value={form.name}
-                      onChange={handleChange}
-                      placeholder="e.g. Cash in Hand / HDFC Bank"
-                      required
-                      style={{
-                        width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                        padding: "0 12px", fontSize: "13px", outline: "none"
-                      }}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                      Account Type Classification
-                    </label>
-                    <select
-                      name="type"
-                      value={form.type}
-                      onChange={handleChange}
-                      style={{
-                        width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                        padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
-                      }}
-                    >
-                      <option value="Assets">Assets</option>
-                      <option value="Liabilities">Liabilities</option>
-                      <option value="Equity">Equity</option>
+                {/* Type Selection */}
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  <label
+                    style={{
+                      width: "130px",
+                      fontSize: "13.5px",
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Type
+                  </label>
+                  <select
+                    name="type"
+                    value={form.type}
+                    onChange={handleChange}
+                    style={{
+                      flex: 1,
+                      border: "none",
+                      borderBottom: "2px solid #cbd5e1",
+                      borderRadius: 0,
+                      padding: "6px 4px",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                      color: "#0f172a",
+                      outline: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) => (e.target.style.borderBottomColor = "#0284c7")}
+                    onBlur={(e) => (e.target.style.borderBottomColor = "#cbd5e1")}
+                  >
+                    <optgroup label="── Balancesheet ──">
+                      <option value="Asset">Asset</option>
+                      <option value="Liability">Liability</option>
+                      <option value="Bank">Bank</option>
+                      <option value="Capital">Capital</option>
+                      <option value="Cash">Cash</option>
+                    </optgroup>
+                    <optgroup label="── Profit and Loss ──">
                       <option value="Income">Income</option>
                       <option value="Expenses">Expenses</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                      Status
-                    </label>
-                    <select
-                      name="status"
-                      value={form.status}
-                      onChange={handleChange}
-                      style={{
-                        width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                        padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
-                      }}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
-
-                  <div className="form-group" style={{ gridColumn: "span 2" }}>
-                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                      Account Group / Description
-                    </label>
-                    <input
-                      name="group"
-                      value={form.group}
-                      onChange={handleChange}
-                      placeholder="e.g. Current Assets / Bank Accounts / Operational Expenses"
-                      style={{
-                        width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                        padding: "0 12px", fontSize: "13px", outline: "none"
-                      }}
-                    />
-                  </div>
+                      <option value="Other Expenses">Other Expenses</option>
+                    </optgroup>
+                  </select>
                 </div>
-              </div>
 
-              <div className="modal-actions" style={{
-                display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingTop: "16px",
-                borderTop: "1px solid #e2e8f0"
-              }}>
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() => setShowModal(false)}
-                  disabled={submitting}
+                {/* Wireframe Annotation Note */}
+                <div
                   style={{
-                    background: "#ffffff", border: "1px solid #93a3bc", color: "#594236",
-                    padding: "9px 18px", borderRadius: "8px", fontSize: "13px", fontWeight: "600", cursor: "pointer"
+                    background: "#f8fafc",
+                    border: "1px dashed #94a3b8",
+                    borderRadius: "10px",
+                    padding: "14px 16px",
+                    marginTop: "8px",
                   }}
                 >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="primary-btn"
-                  disabled={submitting}
-                  style={{
-                    background: "#48acf0", border: "none", color: "#ffffff",
-                    padding: "9px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer"
-                  }}
-                >
-                  {submitting
-                    ? "Saving..."
-                    : !editAccountObj
-                    ? "Save Account"
-                    : "Update Account"}
-                </button>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#475569", lineHeight: 1.5 }}>
+                    <strong style={{ color: "#0284c7" }}>Note:</strong> Each account is assigned an
+                    Account Type, which would further be used for how the account is treated and
+                    where it appears in Balance Sheet & Profit and Loss reports.
+                  </p>
+                </div>
               </div>
             </form>
           </div>
@@ -583,6 +797,4 @@ function Accounts() {
       )}
     </div>
   );
-}
-
-export default Accounts;
+}

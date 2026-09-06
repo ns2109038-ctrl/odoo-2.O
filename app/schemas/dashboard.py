@@ -17,6 +17,15 @@ class DashboardSummaryResponse(BaseModel):
     total_expenses: Decimal = Decimal("0.00")
     net_profit: Decimal = Decimal("0.00")
     cash_bank_balance: Decimal = Decimal("0.00")
+    sales_all_count: int = 0
+    sales_confirmed_count: int = 0
+    sales_draft_count: int = 0
+    purchase_all_count: int = 0
+    purchase_confirmed_count: int = 0
+    purchase_draft_count: int = 0
+    budget_achieved_count: int = 0
+    budget_total_count: int = 0
+    budget_committed_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

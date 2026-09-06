@@ -9,6 +9,7 @@ from app.models.sales_order import SalesOrder
 from app.models.purchase_order import PurchaseOrder
 from app.models.invoice import Invoice
 from app.models.payment import Payment
+from app.models.budget import Budget, BudgetLine
 from app.models.journal_entry import JournalEntry, JournalEntryLine
 from app.services.report_service import _get_account_balances
 from app.schemas.dashboard import (
@@ -91,6 +92,19 @@ def get_dashboard_summary(db: Session) -> DashboardSummaryResponse:
 
     net_profit = total_income - total_expenses
 
+    # 5. Order & Budget Breakdown Metrics (matching wireframe)
+    sales_all_count = db.query(SalesOrder).count()
+    sales_confirmed_count = db.query(SalesOrder).filter(SalesOrder.status == "confirmed").count()
+    sales_draft_count = db.query(SalesOrder).filter(SalesOrder.status == "draft").count()
+
+    purchase_all_count = db.query(PurchaseOrder).count()
+    purchase_confirmed_count = db.query(PurchaseOrder).filter(PurchaseOrder.status == "confirmed").count()
+    purchase_draft_count = db.query(PurchaseOrder).filter(PurchaseOrder.status == "draft").count()
+
+    budget_total_count = db.query(Budget).count()
+    budget_achieved_count = db.query(Budget).filter(Budget.status.in_(["closed", "active"])).count()
+    budget_committed_count = db.query(BudgetLine).count()
+
     return DashboardSummaryResponse(
         total_customers=total_customers,
         total_vendors=total_vendors,
@@ -104,6 +118,15 @@ def get_dashboard_summary(db: Session) -> DashboardSummaryResponse:
         total_expenses=total_expenses,
         net_profit=net_profit,
         cash_bank_balance=cash_bank_balance,
+        sales_all_count=sales_all_count,
+        sales_confirmed_count=sales_confirmed_count,
+        sales_draft_count=sales_draft_count,
+        purchase_all_count=purchase_all_count,
+        purchase_confirmed_count=purchase_confirmed_count,
+        purchase_draft_count=purchase_draft_count,
+        budget_achieved_count=budget_achieved_count,
+        budget_total_count=budget_total_count,
+        budget_committed_count=budget_committed_count,
     )
 
 

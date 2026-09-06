@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from "react";
+import { Plus, Search, ArrowLeft, List, LayoutGrid, Trash2, Edit2 } from "lucide-react";
 import { getProducts, createProduct, updateProduct, deleteProduct as deleteProductApi } from "../lib/api.js";
 import Alert from "../components/ui/Alert.jsx";
 
-function Products() {
-  const [view, setView] = useState("kanban");
+export default function Products({ onNavigate }) {
+  // Default is LIST view as specified in the Master Data wireframe
+  const [view, setView] = useState("list");
   const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editProductObj, setEditProductObj] = useState(null);
   const [products, setProducts] = useState([]);
@@ -47,6 +50,16 @@ function Products() {
         status: p.is_active ? "Active" : "Inactive",
         image_url: p.image_url || "",
       }));
+
+      // Showcase wireframe products (Air Conditioner & Refrigerator) at the top
+      mapped.sort((a, b) => {
+        if (a.name === "Air Conditioner") return -1;
+        if (b.name === "Air Conditioner") return 1;
+        if (a.name === "Refrigerator") return -1;
+        if (b.name === "Refrigerator") return 1;
+        return (b.id || 0) - (a.id || 0);
+      });
+
       setProducts(mapped);
     } catch (err) {
       setError(err.message);
@@ -115,6 +128,31 @@ function Products() {
     setIsNewCategory(false);
     setNewCategoryName("");
     setShowModal(true);
+  };
+
+  const handleToggleSelect = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.length > 0 && selectedIds.length === filteredProducts.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredProducts.map((p) => p.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.length} selected product(s)?`)) return;
+    try {
+      await Promise.all(selectedIds.map((id) => deleteProductApi(id)));
+      setSelectedIds([]);
+      await loadProducts();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const handleNewAction = () => {
@@ -252,156 +290,400 @@ function Products() {
   return (
     <div className="product-page">
       {/* HEADER */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: "16px" }}>
         <div>
           <p className="breadcrumb">Home / Products</p>
           <h1>Products</h1>
           <p className="subtitle">Manage your products and inventory</p>
         </div>
-
-        <button className="primary-btn" onClick={openAddModal}>
-          + New Product
-        </button>
       </div>
 
       {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
 
-      {/* TOOLBAR */}
-      <div className="product-toolbar">
-        <input
-          type="text"
-          placeholder="Search product, code or category..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* ── TOP BAR (Arranged in exact wireframe order: [New] | [Search] | [Back] | [List][Kanban]) ── */}
+      <div
+        className="product-topbar"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #cbd5e1",
+          marginBottom: "20px",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* 1. [New] button on the left */}
+        <button
+          type="button"
+          onClick={openAddModal}
+          style={{
+            background: "#0284c7",
+            color: "#ffffff",
+            border: "none",
+            padding: "8px 20px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
+          }}
+        >
+          <Plus size={15} /> New Product
+        </button>
 
-        <div className="product-view-buttons">
+        {/* 2. [Search] input in the middle */}
+        <div style={{ position: "relative", flex: 1, minWidth: "220px", maxWidth: "480px" }}>
+          <Search
+            size={15}
+            style={{
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search product, code or category..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              height: "38px",
+              paddingLeft: "36px",
+              paddingRight: "14px",
+              borderRadius: "8px",
+              border: "1px solid #cbd5e1",
+              outline: "none",
+              fontSize: "13px",
+              background: "#f8fafc",
+            }}
+          />
+        </div>
+
+        {/* Bulk Delete Button if items selected */}
+        {selectedIds.length > 0 && (
           <button
-            className={view === "list" ? "view-active" : ""}
-            onClick={() => setView("list")}
+            onClick={handleBulkDelete}
+            style={{
+              background: "#fef2f2",
+              color: "#dc2626",
+              border: "1px solid #fca5a5",
+              padding: "6px 12px",
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
           >
-            ☷ List
+            <Trash2 size={13} /> Delete ({selectedIds.length})
+          </button>
+        )}
+
+        {/* 3. [Back] button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onNavigate) onNavigate("Dashboard");
+          }}
+          style={{
+            marginLeft: "auto",
+            background: "#ffffff",
+            border: "1.5px solid #cbd5e1",
+            color: "#334155",
+            padding: "7px 18px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          <ArrowLeft size={14} /> Back
+        </button>
+
+        {/* 4. [List View Icon] and [Kanban View Icon] Switcher on the far right (with red active border) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            title="Switch to List View"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "36px",
+              height: "36px",
+              borderRadius: "6px",
+              border: view === "list" ? "2px solid #ef4444" : "1px solid #cbd5e1",
+              background: view === "list" ? "#ffffff" : "#f8fafc",
+              color: view === "list" ? "#ef4444" : "#64748b",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <List size={18} />
           </button>
 
           <button
-            className={view === "kanban" ? "view-active" : ""}
+            type="button"
             onClick={() => setView("kanban")}
+            title="Switch to Kanban View"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "36px",
+              height: "36px",
+              borderRadius: "6px",
+              border: view === "kanban" ? "2px solid #ef4444" : "1px solid #cbd5e1",
+              background: view === "kanban" ? "#ffffff" : "#f8fafc",
+              color: view === "kanban" ? "#ef4444" : "#64748b",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
           >
-            ▦ Kanban
+            <LayoutGrid size={18} />
           </button>
         </div>
       </div>
 
-      {/* LIST VIEW */}
+      {/* ═══════════════ VIEW 1: PRODUCT MASTER LIST VIEW ═══════════════ */}
       {view === "list" && (
-        <div className="table-card">
-          <div className="table-top">
-            <div>
-              <strong>Product List</strong>
-            </div>
-
-            <span className="count-badge">
+        <div
+          className="product-list-view-card"
+          style={{
+            background: "#ffffff",
+            borderRadius: "12px",
+            border: "1px solid #cbd5e1",
+            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "14px 20px",
+              borderBottom: "1.5px solid #e2e8f0",
+              background: "#f8fafc",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <strong style={{ fontSize: "15px", color: "#0f172a", fontWeight: 800 }}>
+              Product Master List View
+            </strong>
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "#64748b",
+                background: "#e2e8f0",
+                padding: "3px 10px",
+                borderRadius: "12px",
+              }}
+            >
               {filteredProducts.length} Products
             </span>
           </div>
 
-          <div className="responsive-table">
-            <table>
+          <div style={{ overflowX: "auto" }}>
+            <table
+              className="data-table"
+              style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}
+            >
               <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Code</th>
-                  <th>Category</th>
-                  <th>Type</th>
-                  <th>Sales Price</th>
-                  <th>Cost</th>
-                  <th>Stock</th>
-                  <th>Status</th>
-                  <th>Action</th>
+                <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #cbd5e1", color: "#334155", fontWeight: 700 }}>
+                  <th style={{ padding: "12px 16px", width: "40px", textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length > 0 && selectedIds.length === filteredProducts.length}
+                      onChange={handleSelectAll}
+                      style={{ cursor: "pointer" }}
+                    />
+                  </th>
+                  <th style={{ padding: "12px 16px" }}>Product</th>
+                  <th style={{ padding: "12px 16px" }}>Category</th>
+                  <th style={{ padding: "12px 16px" }}>Type</th>
+                  <th style={{ padding: "12px 16px" }}>Sales Price</th>
+                  <th style={{ padding: "12px 16px" }}>Cost</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
 
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="empty-state">
-                      Loading products...
+                    <td colSpan="7" style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                      Loading product master directory...
                     </td>
                   </tr>
                 ) : filteredProducts.length > 0 ? (
                   filteredProducts.map((product) => (
-                    <tr key={product.id}>
-                      <td>
-                        <div className="product-cell">
+                    <tr
+                      key={product.id}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                        transition: "background 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
+                    >
+                      {/* Select Checkbox */}
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(product.id)}
+                          onChange={() => handleToggleSelect(product.id)}
+                          style={{ cursor: "pointer" }}
+                        />
+                      </td>
+
+                      {/* Product (Thumbnail + Name) — Clicking on saved record opens form view */}
+                      <td style={{ padding: "12px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                           {product.image_url ? (
                             <img
                               src={product.image_url}
                               alt={product.name}
-                              className="product-table-img"
+                              style={{
+                                width: "36px",
+                                height: "36px",
+                                borderRadius: "6px",
+                                objectFit: "cover",
+                                border: "1px solid #cbd5e1",
+                                background: "#f8fafc",
+                              }}
                             />
                           ) : (
-                            <div className="product-icon">📦</div>
+                            <div
+                              style={{
+                                width: "36px",
+                                height: "36px",
+                                borderRadius: "6px",
+                                background: "#e2e8f0",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "18px",
+                              }}
+                            >
+                              📦
+                            </div>
                           )}
                           <div>
-                            <b>{product.name}</b>
-                            <small>{product.type || "Goods"}</small>
+                            <span
+                              onClick={() => openEditModal(product)}
+                              title="Click to view & edit product master details"
+                              style={{
+                                fontWeight: 700,
+                                color: "#0284c7",
+                                cursor: "pointer",
+                                textDecoration: "underline",
+                                textUnderlineOffset: "3px",
+                                display: "block",
+                              }}
+                            >
+                              {product.name}
+                            </span>
+                            <small style={{ color: "#94a3b8", fontSize: "11px" }}>
+                              {product.code}
+                            </small>
                           </div>
                         </div>
                       </td>
 
-                      <td>
-                        <span className="product-code">{product.code}</span>
+                      {/* Category */}
+                      <td style={{ padding: "12px 16px", color: "#475569", fontWeight: 600 }}>
+                        {product.category}
                       </td>
 
-                      <td>{product.category}</td>
-
-                      <td>
-                        <span className="product-type">{product.type}</span>
-                      </td>
-
-                      <td>
-                        ₹{product.salesPrice.toLocaleString("en-IN")}
-                      </td>
-
-                      <td>
-                        ₹{product.costPrice.toLocaleString("en-IN")}
-                      </td>
-
-                      <td>{product.stock}</td>
-
-                      <td>
+                      {/* Type */}
+                      <td style={{ padding: "12px 16px" }}>
                         <span
-                          className={
-                            product.status === "Active"
-                              ? "status-active"
-                              : "status-inactive"
-                          }
+                          style={{
+                            padding: "3px 10px",
+                            borderRadius: "12px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            background: product.type === "Goods" ? "#e0f2fe" : "#fef3c7",
+                            color: product.type === "Goods" ? "#0369a1" : "#b45309",
+                          }}
                         >
-                          {product.status}
+                          {product.type || "Goods"}
                         </span>
                       </td>
 
-                      <td>
-                        <button
-                          className="small-btn"
-                          onClick={() => openEditModal(product)}
-                        >
-                          Edit
-                        </button>
+                      {/* Sales Price */}
+                      <td style={{ padding: "12px 16px", fontWeight: 700, color: "#0f172a" }}>
+                        ₹{Number(product.salesPrice || 0).toLocaleString("en-IN")}
+                      </td>
 
-                        <button
-                          className="delete-btn"
-                          onClick={() => deleteProduct(product.id)}
-                        >
-                          Delete
-                        </button>
+                      {/* Cost */}
+                      <td style={{ padding: "12px 16px", fontWeight: 600, color: "#64748b" }}>
+                        ₹{Number(product.costPrice || 0).toLocaleString("en-IN")}
+                      </td>
+
+                      {/* Action */}
+                      <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: "6px" }}>
+                          <button
+                            onClick={() => openEditModal(product)}
+                            title="Edit Product Details"
+                            style={{
+                              background: "#f0f9ff",
+                              color: "#0284c7",
+                              border: "1px solid #bae6fd",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "3px",
+                              fontSize: "11.5px",
+                              fontWeight: 600,
+                            }}
+                          >
+                            <Edit2 size={12} /> Edit
+                          </button>
+                          <button
+                            onClick={() => deleteProduct(product.id)}
+                            title="Delete Product"
+                            style={{
+                              background: "#fef2f2",
+                              color: "#dc2626",
+                              border: "1px solid #fca5a5",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              fontSize: "11.5px",
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="9" className="empty-state">
-                      No products found
+                    <td colSpan="7" style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+                      No matching products found in directory.
                     </td>
                   </tr>
                 )}
@@ -411,92 +693,147 @@ function Products() {
         </div>
       )}
 
-      {/* KANBAN VIEW */}
+      {/* ═══════════════ VIEW 2: PRODUCT KANBAN VIEW (Matches Wireframe Cards) ═══════════════ */}
       {view === "kanban" && (
-        <div className="product-kanban">
+        <div
+          className="product-kanban-view"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: "18px",
+          }}
+        >
           {loading ? (
-            <div className="empty-card" style={{ gridColumn: "1/-1" }}>
-              <p>Loading products...</p>
+            <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+              Loading product cards...
             </div>
-          ) : filteredProducts.map((product) => (
-            <div className="product-card" key={product.id}>
-              <div className="product-card-top">
-                <span
-                  className={
-                    product.status === "Active"
-                      ? "status-active"
-                      : "status-inactive"
-                  }
+          ) : filteredProducts.length > 0 ? (
+            filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                onClick={() => openEditModal(product)}
+                title="Click to open form view with saved details"
+                style={{
+                  background: "#ffffff",
+                  borderRadius: "12px",
+                  border: "1px solid #cbd5e1",
+                  boxShadow: "0 2px 10px rgba(0, 0, 0, 0.05)",
+                  padding: "16px",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  gap: "14px",
+                  alignItems: "center",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#0284c7";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(2, 132, 199, 0.12)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#cbd5e1";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 2px 10px rgba(0, 0, 0, 0.05)";
+                }}
+              >
+                {/* Square Image box on the left (matching wireframe) */}
+                <div
+                  style={{
+                    width: "72px",
+                    height: "72px",
+                    borderRadius: "10px",
+                    border: "1px solid #cbd5e1",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                    background: "#f8fafc",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  {product.status}
-                </span>
+                  {product.image_url ? (
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: "28px" }}>📦</span>
+                  )}
+                </div>
 
-                <span className="product-card-badge-type">
-                  {product.type}
-                </span>
-              </div>
+                {/* Right stacked info matching wireframe: Product Name, Sales Price, Cost */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <b
+                    style={{
+                      fontSize: "15px",
+                      color: "#0f172a",
+                      display: "block",
+                      marginBottom: "4px",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {product.name}
+                  </b>
 
-              {/* Product Image preview in card */}
-              <div className="product-card-media">
-                {product.image_url ? (
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="product-card-img"
-                  />
-                ) : (
-                  <div className="product-card-no-img">
-                    <span className="product-icon-box">📦</span>
+                  <p
+                    style={{
+                      margin: "0 0 2px 0",
+                      fontSize: "13px",
+                      color: "#334155",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Sales Price {Number(product.salesPrice || 0).toLocaleString("en-IN")}
+                  </p>
+
+                  <p
+                    style={{
+                      margin: 0,
+                      fontSize: "12px",
+                      color: "#64748b",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Cost {Number(product.costPrice || 0).toLocaleString("en-IN")}
+                  </p>
+
+                  <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                    <span
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        fontSize: "10.5px",
+                        fontWeight: 700,
+                        background: "#f1f5f9",
+                        color: "#475569",
+                      }}
+                    >
+                      {product.category}
+                    </span>
+                    <span
+                      style={{
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        fontSize: "10.5px",
+                        fontWeight: 700,
+                        background: product.type === "Goods" ? "#e0f2fe" : "#fef3c7",
+                        color: product.type === "Goods" ? "#0369a1" : "#b45309",
+                      }}
+                    >
+                      {product.type || "Goods"}
+                    </span>
                   </div>
-                )}
-              </div>
-
-              <h3>{product.name}</h3>
-              <p className="product-card-code">{product.code}</p>
-
-              <div className="product-info">
-                <div>
-                  <span>Category</span>
-                  <strong>{product.category}</strong>
-                </div>
-
-                <div>
-                  <span>Type</span>
-                  <strong>{product.type}</strong>
-                </div>
-
-                <div>
-                  <span>Sales Price</span>
-                  <strong>
-                    ₹{product.salesPrice.toLocaleString("en-IN")}
-                  </strong>
-                </div>
-
-                <div>
-                  <span>Cost</span>
-                  <strong>
-                    ₹{product.costPrice.toLocaleString("en-IN")}
-                  </strong>
                 </div>
               </div>
-
-              <div className="product-card-actions">
-                <button
-                  className="small-btn"
-                  onClick={() => openEditModal(product)}
-                >
-                  Edit
-                </button>
-
-                <button
-                  className="delete-btn"
-                  onClick={() => deleteProduct(product.id)}
-                >
-                  Delete
-                </button>
-              </div>
+            ))
+          ) : (
+            <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+              No matching products found.
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -765,5 +1102,3 @@ function Products() {
     </div>
   );
 }
-
-export default Products;

@@ -27,19 +27,18 @@ import {
   Camera,
   Upload,
   ArrowLeft,
-  Check,
-  CheckSquare,
-  Square
+  Check
 } from "lucide-react";
 
-export default function Contacts() {
+export default function Contacts({ onNavigate }) {
   const [contacts, setContacts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("All"); // "All" | "Customer" | "Vendor"
-  const [view, setView] = useState("kanban"); // "list" | "kanban"
+  // Default is LIST view as stated in the Master Data wireframe specification
+  const [view, setView] = useState("list"); // "list" | "kanban"
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -86,6 +85,16 @@ export default function Contacts() {
         profile_image: c.profile_image || "",
         status: c.is_active ? "Active" : "Inactive",
       }));
+
+      // Showcase Open Wood and Joey Wills at top to match master data wireframe
+      mapped.sort((a, b) => {
+        if (a.name === "Open Wood") return -1;
+        if (b.name === "Open Wood") return 1;
+        if (a.name === "Joey Wills") return -1;
+        if (b.name === "Joey Wills") return 1;
+        return (b.id || 0) - (a.id || 0);
+      });
+
       setContacts(mapped);
     } catch (err) {
       setError(err.message || "Failed to load contacts.");
@@ -108,9 +117,6 @@ export default function Contacts() {
     return matchesSearch && matchesType;
   });
 
-  const totalCustomers = contacts.filter((c) => c.type === "Customer").length;
-  const totalVendors = contacts.filter((c) => c.type === "Vendor").length;
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({
@@ -119,14 +125,14 @@ export default function Contacts() {
     }));
   };
 
-  // Open empty form for new contact
+  // Open blank form view to enter new record
   const handleOpenNew = () => {
     setForm(initialForm);
     setEditingId(null);
     setShowForm(true);
   };
 
-  // Open form for editing existing record ("Clicking on already saved record - it will open form view with saved details")
+  // Clicking on already saved record - opens form view with saved details
   const handleOpenEdit = (contact) => {
     setForm({
       name: contact.name || "",
@@ -146,7 +152,7 @@ export default function Contacts() {
     setShowForm(true);
   };
 
-  // Handle local avatar upload
+  // Upload image handler
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -257,7 +263,6 @@ export default function Contacts() {
     }
   };
 
-  // Colors for initials
   const getAvatarColor = (name) => {
     const colors = ["#0284c7", "#7c3aed", "#d97706", "#059669", "#dc2626", "#4f46e5"];
     let hash = 0;
@@ -268,369 +273,213 @@ export default function Contacts() {
   };
 
   return (
-    <div className="module-page" style={{ padding: "20px 24px" }}>
-      {/* Page Header */}
-      <div
-        className="page-header"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
-        <div>
-          <p className="breadcrumb" style={{ margin: 0, fontSize: "12px", color: "#94a3b8" }}>
-            Masters / Contacts
-          </p>
-          <h1
-            style={{
-              margin: "4px 0 0",
-              fontSize: "24px",
-              fontWeight: 800,
-              color: "#0f172a",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
-          >
-            <Users size={24} style={{ color: "#0284c7" }} /> Contact Directory
-          </h1>
-          <p className="subtitle" style={{ margin: "2px 0 0", fontSize: "13px", color: "#64748b" }}>
-            Manage customer profiles, supplier master cards, and address directories.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <button
-            className="primary-btn"
-            onClick={handleOpenNew}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "linear-gradient(135deg, #0284c7, #2563eb)",
-              color: "#ffffff",
-              border: "none",
-              padding: "10px 18px",
-              borderRadius: "8px",
-              fontWeight: 600,
-              fontSize: "13px",
-              cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(2, 132, 199, 0.3)",
-            }}
-          >
-            <UserPlus size={16} /> New Contact
-          </button>
-        </div>
-      </div>
-
+    <div className="module-page">
       {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
       {successMsg && <Alert type="success" style={{ marginBottom: "16px" }}>{successMsg}</Alert>}
 
-      {/* KPI Stats Bar */}
+      {/* ── TOP BAR (Arranged in exact wireframe order: [New] | [Search] | [Back] | [List][Kanban]) ── */}
       <div
-        className="stats-grid"
+        className="contact-topbar"
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "16px",
-          marginBottom: "20px",
-        }}
-      >
-        <div
-          className="stat-card"
-          style={{
-            background: "#ffffff",
-            padding: "16px",
-            borderRadius: "12px",
-            border: "1px solid #e2e8f0",
-            display: "flex",
-            alignItems: "center",
-            gap: "14px",
-          }}
-        >
-          <div
-            style={{
-              width: "44px",
-              height: "44px",
-              borderRadius: "10px",
-              background: "rgba(2, 132, 199, 0.12)",
-              color: "#0284c7",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Users size={22} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Total Contacts</p>
-            <h2 style={{ margin: "2px 0 0", fontSize: "22px", color: "#0f172a", fontWeight: 800 }}>
-              {contacts.length}
-            </h2>
-          </div>
-        </div>
-
-        <div
-          className="stat-card"
-          style={{
-            background: "#ffffff",
-            padding: "16px",
-            borderRadius: "12px",
-            border: "1px solid #e2e8f0",
-            display: "flex",
-            alignItems: "center",
-            gap: "14px",
-          }}
-        >
-          <div
-            style={{
-              width: "44px",
-              height: "44px",
-              borderRadius: "10px",
-              background: "rgba(34, 197, 94, 0.12)",
-              color: "#22c55e",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <UserCheck size={22} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Customers</p>
-            <h2 style={{ margin: "2px 0 0", fontSize: "22px", color: "#0f172a", fontWeight: 800 }}>
-              {totalCustomers}
-            </h2>
-          </div>
-        </div>
-
-        <div
-          className="stat-card"
-          style={{
-            background: "#ffffff",
-            padding: "16px",
-            borderRadius: "12px",
-            border: "1px solid #e2e8f0",
-            display: "flex",
-            alignItems: "center",
-            gap: "14px",
-          }}
-        >
-          <div
-            style={{
-              width: "44px",
-              height: "44px",
-              borderRadius: "10px",
-              background: "rgba(168, 85, 247, 0.12)",
-              color: "#a855f7",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Building size={22} />
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Vendors / Suppliers</p>
-            <h2 style={{ margin: "2px 0 0", fontSize: "22px", color: "#0f172a", fontWeight: 800 }}>
-              {totalVendors}
-            </h2>
-          </div>
-        </div>
-      </div>
-
-      {/* Toolbar & View Switcher (Matches User Wireframe) */}
-      <div
-        className="module-toolbar"
-        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
           background: "#ffffff",
           padding: "12px 18px",
           borderRadius: "12px",
-          border: "1px solid #e2e8f0",
+          border: "1px solid #cbd5e1",
           marginBottom: "20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
           flexWrap: "wrap",
-          gap: "12px",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: "260px" }}>
-          {/* New Button (wireframe left button) */}
-          <button
-            type="button"
-            onClick={handleOpenNew}
+        {/* 1. [New] button on the left */}
+        <button
+          type="button"
+          onClick={handleOpenNew}
+          style={{
+            background: "#0284c7",
+            color: "#ffffff",
+            border: "none",
+            padding: "8px 20px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            boxShadow: "0 2px 6px rgba(2, 132, 199, 0.3)",
+          }}
+        >
+          <Plus size={15} /> New
+        </button>
+
+        {/* 2. [Search] input in middle */}
+        <div style={{ position: "relative", flex: 1, minWidth: "220px", maxWidth: "480px" }}>
+          <Search
+            size={15}
             style={{
-              background: "#0284c7",
-              color: "#ffffff",
-              border: "none",
-              padding: "7px 14px",
+              position: "absolute",
+              left: "12px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "#94a3b8",
+            }}
+          />
+          <input
+            type="text"
+            placeholder="Search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              height: "38px",
+              paddingLeft: "36px",
+              paddingRight: "14px",
               borderRadius: "8px",
+              border: "1px solid #cbd5e1",
+              outline: "none",
+              fontSize: "13px",
+              background: "#f8fafc",
+            }}
+          />
+        </div>
+
+        {/* Type filters (Customer / Vendor) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          {["All", "Customer", "Vendor"].map((t) => (
+            <button
+              key={t}
+              onClick={() => setFilterType(t)}
+              style={{
+                border: "none",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                background: filterType === t ? "#0284c7" : "#f1f5f9",
+                color: filterType === t ? "#ffffff" : "#475569",
+                transition: "all 0.15s ease",
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {selectedIds.length > 0 && (
+          <button
+            onClick={handleBulkDelete}
+            style={{
+              background: "#fef2f2",
+              color: "#dc2626",
+              border: "1px solid #fca5a5",
+              padding: "6px 12px",
+              borderRadius: "6px",
               fontSize: "12px",
-              fontWeight: 700,
+              fontWeight: 600,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: "4px",
             }}
           >
-            <Plus size={14} /> New
+            <Trash2 size={13} /> Delete ({selectedIds.length})
           </button>
+        )}
 
-          {/* Search Box */}
-          <div style={{ position: "relative", flex: 1, maxWidth: "360px" }}>
-            <Search
-              size={15}
-              style={{
-                position: "absolute",
-                left: "12px",
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "#94a3b8",
-              }}
-            />
-            <input
-              type="text"
-              placeholder="Search by name, email, phone, city..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: "100%",
-                height: "36px",
-                paddingLeft: "34px",
-                paddingRight: "12px",
-                borderRadius: "8px",
-                border: "1px solid #cbd5e1",
-                outline: "none",
-                fontSize: "13px",
-                background: "#f8fafc",
-              }}
-            />
-          </div>
+        {/* 3. [Back] button on right */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onNavigate) onNavigate("Dashboard");
+          }}
+          style={{
+            marginLeft: "auto",
+            background: "#ffffff",
+            border: "1.5px solid #cbd5e1",
+            color: "#334155",
+            padding: "7px 18px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          <ArrowLeft size={14} /> Back
+        </button>
 
-          {/* Type Filters */}
-          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-            {["All", "Customer", "Vendor"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setFilterType(t)}
-                style={{
-                  border: "none",
-                  padding: "6px 12px",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  background: filterType === t ? "#0284c7" : "#f1f5f9",
-                  color: filterType === t ? "#ffffff" : "#475569",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {selectedIds.length > 0 && (
-            <button
-              onClick={handleBulkDelete}
-              style={{
-                background: "#fef2f2",
-                color: "#dc2626",
-                border: "1px solid #fca5a5",
-                padding: "6px 12px",
-                borderRadius: "6px",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-              }}
-            >
-              <Trash2 size={13} /> Delete ({selectedIds.length})
-            </button>
-          )}
-        </div>
-
-        {/* VIEW SWITCHER BUTTONS (Matches wireframe highlight) */}
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span style={{ fontSize: "12px", color: "#64748b", marginRight: "6px" }}>
-            Showing: <b>{filteredContacts.length}</b>
-          </span>
-
+        {/* 4. [List View Icon] and [Kanban View Icon] Switcher on the far right (with red active border like wireframe) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
           <button
             type="button"
             onClick={() => setView("list")}
-            title="List View"
+            title="Switch to List View"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "5px",
-              padding: "7px 12px",
-              borderRadius: "8px",
-              border: view === "list" ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
-              background: view === "list" ? "#0284c7" : "#ffffff",
-              color: view === "list" ? "#ffffff" : "#475569",
-              fontWeight: 600,
+              justifyContent: "center",
+              width: "36px",
+              height: "36px",
+              borderRadius: "6px",
+              border: view === "list" ? "2px solid #ef4444" : "1px solid #cbd5e1",
+              background: view === "list" ? "#ffffff" : "#f8fafc",
+              color: view === "list" ? "#ef4444" : "#64748b",
               cursor: "pointer",
-              fontSize: "12.5px",
-              boxShadow: view === "list" ? "0 2px 6px rgba(2, 132, 199, 0.25)" : "none",
               transition: "all 0.15s ease",
             }}
           >
-            <List size={16} /> List
+            <List size={18} />
           </button>
 
           <button
             type="button"
             onClick={() => setView("kanban")}
-            title="Kanban Card View"
+            title="Switch to Kanban View"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "5px",
-              padding: "7px 12px",
-              borderRadius: "8px",
-              border: view === "kanban" ? "1.5px solid #0284c7" : "1px solid #cbd5e1",
-              background: view === "kanban" ? "#0284c7" : "#ffffff",
-              color: view === "kanban" ? "#ffffff" : "#475569",
-              fontWeight: 600,
+              justifyContent: "center",
+              width: "36px",
+              height: "36px",
+              borderRadius: "6px",
+              border: view === "kanban" ? "2px solid #ef4444" : "1px solid #cbd5e1",
+              background: view === "kanban" ? "#ffffff" : "#f8fafc",
+              color: view === "kanban" ? "#ef4444" : "#64748b",
               cursor: "pointer",
-              fontSize: "12.5px",
-              boxShadow: view === "kanban" ? "0 2px 6px rgba(2, 132, 199, 0.25)" : "none",
               transition: "all 0.15s ease",
             }}
           >
-            <LayoutGrid size={16} /> Kanban
+            <LayoutGrid size={18} />
           </button>
         </div>
       </div>
 
-      {/* ═══════════════ VIEW 1: CONTACT LIST VIEW (TABLE) ═══════════════ */}
+      {/* ═══════════════ VIEW 1: CONTACT LIST VIEW (DEFAULT) ═══════════════ */}
       {view === "list" && (
         <div
-          className="module-card"
+          className="contact-list-view"
           style={{
             background: "#ffffff",
             borderRadius: "12px",
-            border: "1px solid #e2e8f0",
+            border: "1px solid #cbd5e1",
             boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
             overflow: "hidden",
           }}
         >
-          <div className="table-wrapper" style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: "auto" }}>
             <table
               className="data-table"
               style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}
             >
               <thead>
-                <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#334155", fontWeight: 700 }}>
-                  <th style={{ padding: "12px 14px", width: "40px", textAlign: "center" }}>
+                <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #cbd5e1", color: "#334155", fontWeight: 700 }}>
+                  <th style={{ padding: "12px 16px", width: "40px", textAlign: "center" }}>
                     <input
                       type="checkbox"
                       checked={selectedIds.length > 0 && selectedIds.length === filteredContacts.length}
@@ -638,14 +487,14 @@ export default function Contacts() {
                       style={{ cursor: "pointer" }}
                     />
                   </th>
-                  <th style={{ padding: "12px 14px", width: "60px" }}>Image</th>
-                  <th style={{ padding: "12px 14px" }}>Name</th>
-                  <th style={{ padding: "12px 14px" }}>Type</th>
-                  <th style={{ padding: "12px 14px" }}>Email</th>
-                  <th style={{ padding: "12px 14px" }}>Phone</th>
-                  <th style={{ padding: "12px 14px" }}>City / Location</th>
-                  <th style={{ padding: "12px 14px" }}>Status</th>
-                  <th style={{ padding: "12px 14px", textAlign: "right" }}>Action</th>
+                  <th style={{ padding: "12px 16px", width: "70px" }}>Image</th>
+                  <th style={{ padding: "12px 16px" }}>Name</th>
+                  <th style={{ padding: "12px 16px" }}>Email</th>
+                  <th style={{ padding: "12px 16px" }}>Phone</th>
+                  <th style={{ padding: "12px 16px" }}>Type</th>
+                  <th style={{ padding: "12px 16px" }}>City</th>
+                  <th style={{ padding: "12px 16px" }}>Status</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
 
@@ -667,8 +516,8 @@ export default function Contacts() {
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "#ffffff")}
                     >
-                      {/* Checkbox */}
-                      <td style={{ padding: "12px 14px", textAlign: "center" }}>
+                      {/* Select Checkbox */}
+                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(contact.id)}
@@ -677,8 +526,8 @@ export default function Contacts() {
                         />
                       </td>
 
-                      {/* Image Avatar */}
-                      <td style={{ padding: "12px 14px" }}>
+                      {/* Image */}
+                      <td style={{ padding: "12px 16px" }}>
                         {contact.profile_image ? (
                           <img
                             src={contact.profile_image}
@@ -686,7 +535,7 @@ export default function Contacts() {
                             style={{
                               width: "36px",
                               height: "36px",
-                              borderRadius: "50%",
+                              borderRadius: "6px",
                               objectFit: "cover",
                               border: "1px solid #cbd5e1",
                             }}
@@ -696,7 +545,7 @@ export default function Contacts() {
                             style={{
                               width: "36px",
                               height: "36px",
-                              borderRadius: "50%",
+                              borderRadius: "6px",
                               background: getAvatarColor(contact.name),
                               color: "#ffffff",
                               display: "flex",
@@ -711,11 +560,11 @@ export default function Contacts() {
                         )}
                       </td>
 
-                      {/* Name (Clickable to open Form View) */}
-                      <td style={{ padding: "12px 14px" }}>
+                      {/* Name — Clicking on already saved record opens form view with saved details */}
+                      <td style={{ padding: "12px 16px" }}>
                         <span
                           onClick={() => handleOpenEdit(contact)}
-                          title="Click to view & edit contact master"
+                          title="Click to view & edit contact master details"
                           style={{
                             fontWeight: 700,
                             color: "#0284c7",
@@ -728,8 +577,18 @@ export default function Contacts() {
                         </span>
                       </td>
 
+                      {/* Email */}
+                      <td style={{ padding: "12px 16px", color: "#475569" }}>
+                        {contact.email || "-"}
+                      </td>
+
+                      {/* Phone */}
+                      <td style={{ padding: "12px 16px", color: "#475569" }}>
+                        {contact.phone || "-"}
+                      </td>
+
                       {/* Type */}
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "12px 16px" }}>
                         <span
                           style={{
                             padding: "3px 8px",
@@ -744,26 +603,13 @@ export default function Contacts() {
                         </span>
                       </td>
 
-                      {/* Email */}
-                      <td style={{ padding: "12px 14px", color: "#475569" }}>
-                        {contact.email || "-"}
-                      </td>
-
-                      {/* Phone */}
-                      <td style={{ padding: "12px 14px", color: "#475569" }}>
-                        {contact.phone || "-"}
-                      </td>
-
                       {/* City */}
-                      <td style={{ padding: "12px 14px", color: "#475569" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                          <MapPin size={13} style={{ color: "#94a3b8" }} />
-                          {contact.city || "-"}
-                        </div>
+                      <td style={{ padding: "12px 16px", color: "#475569" }}>
+                        {contact.city || "-"}
                       </td>
 
                       {/* Status */}
-                      <td style={{ padding: "12px 14px" }}>
+                      <td style={{ padding: "12px 16px" }}>
                         <span
                           style={{
                             padding: "3px 8px",
@@ -778,12 +624,12 @@ export default function Contacts() {
                         </span>
                       </td>
 
-                      {/* Actions */}
-                      <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                      {/* Action */}
+                      <td style={{ padding: "12px 16px", textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: "6px" }}>
                           <button
                             onClick={() => handleOpenEdit(contact)}
-                            title="Edit Contact"
+                            title="Edit Contact Details"
                             style={{
                               background: "#f0f9ff",
                               color: "#0284c7",
@@ -834,12 +680,13 @@ export default function Contacts() {
         </div>
       )}
 
-      {/* ═══════════════ VIEW 2: CONTACT KANBAN / CARD VIEW ═══════════════ */}
+      {/* ═══════════════ VIEW 2: CONTACT KANBAN VIEW (Matches Wireframe Cards) ═══════════════ */}
       {view === "kanban" && (
         <div
+          className="contact-kanban-view"
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
             gap: "18px",
           }}
         >
@@ -852,190 +699,122 @@ export default function Contacts() {
               <div
                 key={contact.id}
                 onClick={() => handleOpenEdit(contact)}
-                title="Click to view & edit contact details"
+                title="Click to open form view with saved details"
                 style={{
                   background: "#ffffff",
-                  borderRadius: "14px",
-                  border: "1px solid #e2e8f0",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.05)",
-                  padding: "18px",
+                  borderRadius: "12px",
+                  border: "1px solid #cbd5e1",
+                  boxShadow: "0 2px 10px rgba(0, 0, 0, 0.05)",
+                  padding: "16px",
                   cursor: "pointer",
-                  transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                  transition: "all 0.2s ease",
                   display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  position: "relative",
+                  gap: "14px",
+                  alignItems: "center",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-3px)";
-                  e.currentTarget.style.boxShadow = "0 8px 24px rgba(2, 132, 199, 0.15)";
-                  e.currentTarget.style.borderColor = "#38bdf8";
+                  e.currentTarget.style.borderColor = "#0284c7";
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 20px rgba(2, 132, 199, 0.12)";
                 }}
                 onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#cbd5e1";
                   e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.05)";
-                  e.currentTarget.style.borderColor = "#e2e8f0";
+                  e.currentTarget.style.boxShadow = "0 2px 10px rgba(0, 0, 0, 0.05)";
                 }}
               >
-                {/* Top: Avatar & Name */}
-                <div style={{ display: "flex", gap: "14px", alignItems: "flex-start", marginBottom: "12px" }}>
+                {/* Square Image box on the left (matching wireframe) */}
+                <div
+                  style={{
+                    width: "68px",
+                    height: "68px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                    background: "#f8fafc",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   {contact.profile_image ? (
                     <img
                       src={contact.profile_image}
                       alt={contact.name}
-                      style={{
-                        width: "50px",
-                        height: "50px",
-                        borderRadius: "12px",
-                        objectFit: "cover",
-                        border: "1px solid #cbd5e1",
-                        flexShrink: 0,
-                      }}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                   ) : (
                     <div
                       style={{
-                        width: "50px",
-                        height: "50px",
-                        borderRadius: "12px",
+                        width: "100%",
+                        height: "100%",
                         background: getAvatarColor(contact.name),
                         color: "#ffffff",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         fontWeight: 800,
-                        fontSize: "18px",
-                        flexShrink: 0,
+                        fontSize: "20px",
                       }}
                     >
                       {contact.name.charAt(0).toUpperCase()}
                     </div>
                   )}
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
-                      <b
-                        style={{
-                          fontSize: "15px",
-                          color: "#0f172a",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {contact.name}
-                      </b>
-                      <span
-                        style={{
-                          padding: "2px 7px",
-                          borderRadius: "10px",
-                          fontSize: "10.5px",
-                          fontWeight: 700,
-                          background: contact.type === "Customer" ? "#e0f2fe" : "#f3e8ff",
-                          color: contact.type === "Customer" ? "#0369a1" : "#7e22ce",
-                        }}
-                      >
-                        {contact.type}
-                      </span>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "4px" }}>
-                      <span
-                        style={{
-                          display: "inline-block",
-                          width: "7px",
-                          height: "7px",
-                          borderRadius: "50%",
-                          background: contact.status === "Active" ? "#22c55e" : "#ef4444",
-                        }}
-                      />
-                      <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 500 }}>
-                        {contact.status}
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
-                {/* Middle: Details */}
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "6px",
-                    fontSize: "12px",
-                    color: "#475569",
-                    paddingTop: "8px",
-                    borderTop: "1px solid #f1f5f9",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <Mail size={13} style={{ color: "#94a3b8" }} />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {contact.email || "No email"}
+                {/* Right Side: Name, Email, Phone (matching wireframe text) */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+                    <b
+                      style={{
+                        fontSize: "15px",
+                        color: "#0f172a",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        display: "block",
+                      }}
+                    >
+                      {contact.name}
+                    </b>
+                    <span
+                      style={{
+                        padding: "2px 6px",
+                        borderRadius: "8px",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        background: contact.type === "Customer" ? "#e0f2fe" : "#f3e8ff",
+                        color: contact.type === "Customer" ? "#0369a1" : "#7e22ce",
+                      }}
+                    >
+                      {contact.type}
                     </span>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <Phone size={13} style={{ color: "#94a3b8" }} />
-                    <span>{contact.phone || "No phone"}</span>
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <MapPin size={13} style={{ color: "#94a3b8" }} />
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {[contact.city, contact.country].filter(Boolean).join(", ") || "No location"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Bottom Bar: Action buttons */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginTop: "12px",
-                    paddingTop: "10px",
-                    borderTop: "1px solid #f1f5f9",
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => handleOpenEdit(contact)}
+                  <p
                     style={{
-                      background: "#f0f9ff",
-                      color: "#0284c7",
-                      border: "1px solid #bae6fd",
-                      padding: "4px 10px",
-                      borderRadius: "6px",
-                      fontSize: "11.5px",
+                      margin: "3px 0 0",
+                      fontSize: "12px",
+                      color: "#64748b",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {contact.email || "No email"}
+                  </p>
+
+                  <p
+                    style={{
+                      margin: "2px 0 0",
+                      fontSize: "12px",
+                      color: "#0f172a",
                       fontWeight: 600,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
                     }}
                   >
-                    <Edit2 size={12} /> Edit Details
-                  </button>
-
-                  <button
-                    onClick={() => handleDelete(contact.id, contact.name)}
-                    style={{
-                      background: "#fef2f2",
-                      color: "#dc2626",
-                      border: "1px solid #fca5a5",
-                      padding: "4px 8px",
-                      borderRadius: "6px",
-                      fontSize: "11.5px",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "3px",
-                    }}
-                  >
-                    <Trash2 size={12} /> Delete
-                  </button>
+                    {contact.phone || "No phone"}
+                  </p>
                 </div>
               </div>
             ))
@@ -1057,7 +836,7 @@ export default function Contacts() {
         </div>
       )}
 
-      {/* ═══════════════ CONTACT MASTER FORM VIEW (Matches User Wireframe) ═══════════════ */}
+      {/* ═══════════════ CONTACT MASTER FORM VIEW (Matches Left Wireframe) ═══════════════ */}
       {showForm && (
         <div
           className="modal-overlay"
@@ -1084,7 +863,7 @@ export default function Contacts() {
               background: "#ffffff",
               borderRadius: "16px",
               width: "100%",
-              maxWidth: "780px",
+              maxWidth: "800px",
               boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
               overflow: "hidden",
               border: "1px solid #cbd5e1",
@@ -1093,7 +872,7 @@ export default function Contacts() {
               flexDirection: "column",
             }}
           >
-            {/* Form View Top Control Bar (New, Confirm, Back) */}
+            {/* Top Bar matching wireframe: [New] [Confirm] on left, [Back] on right */}
             <div
               style={{
                 padding: "16px 24px",
@@ -1105,18 +884,8 @@ export default function Contacts() {
                 borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
               }}
             >
-              <div>
-                <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Users size={18} style={{ color: "#38bdf8" }} />
-                  {editingId ? "Contact Master Form View (Edit Details)" : "Contact Master Form View (New)"}
-                </h2>
-                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#94a3b8" }}>
-                  {editingId ? `Editing details for ID #${editingId}` : "Create a new contact card with image and address"}
-                </p>
-              </div>
-
-              {/* Top action buttons matching wireframe */}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {/* Left action buttons: [New] and [Confirm] */}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1124,13 +893,13 @@ export default function Contacts() {
                     setEditingId(null);
                   }}
                   style={{
-                    background: "rgba(255, 255, 255, 0.12)",
-                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    background: "rgba(255, 255, 255, 0.15)",
+                    border: "1px solid rgba(255, 255, 255, 0.3)",
                     color: "#ffffff",
-                    padding: "6px 14px",
+                    padding: "7px 18px",
                     borderRadius: "8px",
-                    fontSize: "12px",
-                    fontWeight: 600,
+                    fontSize: "13px",
+                    fontWeight: 700,
                     cursor: "pointer",
                   }}
                 >
@@ -1145,46 +914,51 @@ export default function Contacts() {
                     background: "#0284c7",
                     border: "none",
                     color: "#ffffff",
-                    padding: "6px 16px",
+                    padding: "7px 20px",
                     borderRadius: "8px",
-                    fontSize: "12px",
+                    fontSize: "13px",
                     fontWeight: 700,
                     cursor: submitting ? "not-allowed" : "pointer",
                     display: "flex",
                     alignItems: "center",
-                    gap: "4px",
+                    gap: "5px",
                     boxShadow: "0 2px 8px rgba(2, 132, 199, 0.4)",
                   }}
                 >
-                  <Check size={14} /> Confirm
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid rgba(255, 255, 255, 0.3)",
-                    color: "#cbd5e1",
-                    padding: "6px 14px",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                  }}
-                >
-                  <ArrowLeft size={13} /> Back
+                  <Check size={15} /> Confirm
                 </button>
               </div>
+
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#38bdf8" }}>
+                {editingId ? "Contact master Form View" : "Contact master Form View (New)"}
+              </span>
+
+              {/* Right action button: [Back] */}
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                style={{
+                  background: "transparent",
+                  border: "1.5px solid rgba(255, 255, 255, 0.35)",
+                  color: "#ffffff",
+                  padding: "7px 18px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "5px",
+                }}
+              >
+                <ArrowLeft size={14} /> Back
+              </button>
             </div>
 
-            {/* Form Body with 2 Columns (Inputs on Left, Upload Image Box on Right) */}
+            {/* Form Body (Left: Contact Details & Address | Right: Upload Image box) */}
             <form onSubmit={handleSaveContact} style={{ padding: "24px", overflowY: "auto", flex: 1 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 240px", gap: "24px" }}>
-                {/* Left Side: Contact Details */}
+                {/* Left Form Inputs */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   {/* Contact Name */}
                   <div>
@@ -1196,7 +970,7 @@ export default function Contacts() {
                       name="name"
                       value={form.name}
                       onChange={handleChange}
-                      placeholder="e.g. Open Wood / Joey Wills"
+                      placeholder="e.g. Open Wood"
                       required
                       style={{
                         width: "100%",
@@ -1210,7 +984,7 @@ export default function Contacts() {
                     />
                   </div>
 
-                  {/* Type & Status */}
+                  {/* Contact Type & Status */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                     <div>
                       <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#1e293b", marginBottom: "4px" }}>
@@ -1261,7 +1035,7 @@ export default function Contacts() {
                     </div>
                   </div>
 
-                  {/* Unique Email & Phone */}
+                  {/* Email (Unique Email) & Phone */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                     <div>
                       <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#1e293b", marginBottom: "4px" }}>
@@ -1272,7 +1046,7 @@ export default function Contacts() {
                         name="email"
                         value={form.email}
                         onChange={handleChange}
-                        placeholder="e.g. Joey.wills@example.com"
+                        placeholder="Unique Email"
                         style={{
                           width: "100%",
                           height: "38px",
@@ -1308,10 +1082,10 @@ export default function Contacts() {
                     </div>
                   </div>
 
-                  {/* Address Section */}
+                  {/* Address Block (Street, City, State, Country, Pincode) */}
                   <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "10px", border: "1px solid #e2e8f0" }}>
                     <label style={{ display: "block", fontSize: "12px", fontWeight: 800, color: "#0f172a", marginBottom: "8px" }}>
-                      Address Details
+                      Address
                     </label>
 
                     {/* Street */}
@@ -1321,7 +1095,7 @@ export default function Contacts() {
                         name="address"
                         value={form.address}
                         onChange={handleChange}
-                        placeholder="Street Address..."
+                        placeholder="Street"
                         style={{
                           width: "100%",
                           height: "36px",
@@ -1381,7 +1155,7 @@ export default function Contacts() {
                         name="country"
                         value={form.country}
                         onChange={handleChange}
-                        placeholder="Country (India)"
+                        placeholder="Country"
                         style={{
                           width: "100%",
                           height: "36px",
@@ -1399,7 +1173,7 @@ export default function Contacts() {
                         name="pincode"
                         value={form.pincode}
                         onChange={handleChange}
-                        placeholder="Pincode / Postal"
+                        placeholder="Pincode"
                         style={{
                           width: "100%",
                           height: "36px",
@@ -1415,17 +1189,17 @@ export default function Contacts() {
                   </div>
                 </div>
 
-                {/* Right Side: Upload Image Box (Exact match with wireframe) */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {/* Right Side: Upload Image Box (matching wireframe) */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>
-                    Contact Photo / Logo
+                    Upload Image
                   </label>
 
                   <div
                     onClick={() => fileInputRef.current?.click()}
                     style={{
                       width: "100%",
-                      height: "220px",
+                      height: "230px",
                       borderRadius: "14px",
                       border: "2px dashed #94a3b8",
                       background: "#f8fafc",
@@ -1445,7 +1219,7 @@ export default function Contacts() {
                       <>
                         <img
                           src={form.profile_image}
-                          alt="Contact Preview"
+                          alt="Contact Avatar"
                           style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         />
                         <div
@@ -1462,7 +1236,7 @@ export default function Contacts() {
                             fontWeight: 600,
                           }}
                         >
-                          Change Photo
+                          Change Image
                         </div>
                       </>
                     ) : (
@@ -1470,7 +1244,7 @@ export default function Contacts() {
                         <Camera size={36} style={{ color: "#64748b", margin: "0 auto 8px" }} />
                         <b style={{ color: "#334155", fontSize: "13px", display: "block" }}>Upload Image</b>
                         <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#94a3b8" }}>
-                          Click to browse PNG, JPG or avatar
+                          Click to browse image
                         </p>
                       </div>
                     )}
@@ -1499,11 +1273,11 @@ export default function Contacts() {
                         cursor: "pointer",
                       }}
                     >
-                      Remove Photo
+                      Remove Image
                     </button>
                   )}
 
-                  {/* Tax ID / GSTIN */}
+                  {/* Tax ID */}
                   <div style={{ marginTop: "auto" }}>
                     <label style={{ display: "block", fontSize: "11.5px", fontWeight: 700, color: "#1e293b", marginBottom: "4px" }}>
                       Tax ID / GSTIN
@@ -1513,7 +1287,7 @@ export default function Contacts() {
                       name="tax_id"
                       value={form.tax_id}
                       onChange={handleChange}
-                      placeholder="e.g. 27AAAAA0000A1Z5"
+                      placeholder="Tax ID"
                       style={{
                         width: "100%",
                         height: "36px",

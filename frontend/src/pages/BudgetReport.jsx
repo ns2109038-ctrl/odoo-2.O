@@ -42,9 +42,13 @@ import {
   ChevronRight
 } from "lucide-react";
 
-export default function BudgetReport({ authUser }) {
+export default function BudgetReport({ authUser, initialReportType = "budget" }) {
   // Primary report view tabs: "budget" | "trial-balance" | "balance-sheet" | "profit-loss" | "security-audit"
-  const [reportType, setReportType] = useState("budget");
+  const [reportType, setReportType] = useState(initialReportType || "budget");
+
+  useEffect(() => {
+    if (initialReportType) setReportType(initialReportType);
+  }, [initialReportType]);
 
   // Budget sub-view: "list" | "analytics"
   const [budgetView, setBudgetView] = useState("list");

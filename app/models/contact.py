@@ -20,7 +20,7 @@ class Contact(Base):
     country = Column(String(100), nullable=True, default="India")
     tax_id = Column(String(50), nullable=True, index=True)
     pincode = Column(String(20), nullable=True)
-    profile_image = Column(String(255), nullable=True)
+    profile_image = Column(Text, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

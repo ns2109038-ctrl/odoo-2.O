@@ -9,14 +9,16 @@ def normalize_account_type(v: str) -> str:
     if not v:
         raise ValueError("account_type is required")
     v_clean = v.strip().lower()
-    if v_clean == "capital":
+    if v_clean in ("capital", "equity"):
         return "equity"
-    if v_clean == "assets":
+    if v_clean in ("assets", "asset", "bank", "cash"):
         return "asset"
-    if v_clean == "liabilities":
+    if v_clean in ("liabilities", "liability"):
         return "liability"
-    if v_clean == "expenses":
+    if v_clean in ("expenses", "expense", "other expenses", "other expense"):
         return "expense"
+    if v_clean in ("income", "revenue", "sales"):
+        return "income"
     if v_clean not in VALID_ACCOUNT_TYPES:
         types_str = ", ".join(sorted(VALID_ACCOUNT_TYPES))
         raise ValueError(f"account_type must be one of: {types_str}")
