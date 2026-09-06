@@ -30,6 +30,7 @@ import ResetPasswordPage   from "./pages/ResetPasswordPage.jsx";
 import AccountSecurityModal from "./components/AccountSecurityModal.jsx";
 import HelpSupportModal    from "./components/HelpSupportModal.jsx";
 import AiChatbot           from "./components/AiChatbot.jsx";
+import NotificationPopover from "./components/NotificationPopover.jsx";
 
 // ── Authenticated pages ───────────────────────────────────────────
 import Contacts       from "./pages/Contacts.jsx";
@@ -69,6 +70,76 @@ function App() {
 
   // Help & Support modal open state
   const [showHelpModal, setShowHelpModal] = useState(false);
+
+  // ── Notifications State ──────────────────────────────────────────
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([
+    {
+      id: "notif-1",
+      type: "payment",
+      title: "UPI Payment Received",
+      message: "₹45,000 received from Sharma Interiors via UPI QR (Ref: UPI-982341201).",
+      time: "5m ago",
+      read: false,
+      targetPage: "Payments",
+    },
+    {
+      id: "notif-2",
+      type: "invoice",
+      title: "Customer Invoice Overdue",
+      message: "Invoice #INV-2026-003 for ₹18,500 is due today.",
+      time: "25m ago",
+      read: false,
+      targetPage: "Sales",
+    },
+    {
+      id: "notif-3",
+      type: "inventory",
+      title: "Low Inventory Alert",
+      message: "Teak Wood Executive Desk is down to 3 units in stock.",
+      time: "2h ago",
+      read: false,
+      targetPage: "Products",
+    },
+    {
+      id: "notif-4",
+      type: "security",
+      title: "Account Security Active",
+      message: "Two-Factor Authentication (2FA) is active for administrator session.",
+      time: "1d ago",
+      read: true,
+      targetPage: "Dashboard",
+    },
+    {
+      id: "notif-5",
+      type: "budget",
+      title: "Budget Threshold Warning",
+      message: "Marketing & Operations budget has crossed 80% utilization.",
+      time: "1d ago",
+      read: true,
+      targetPage: "Budget Report",
+    },
+  ]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAsRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const handleMarkAllAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const handleClearAllNotifications = () => {
+    setNotifications([]);
+  };
+
+  const handleDeleteNotification = (id) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
 
   // ── Auth Expired Listener ────────────────────────────────────────
   useEffect(() => {
@@ -313,10 +384,28 @@ function App() {
             >
               <ShieldCheck size={18} style={{ color: "#48acf0" }} />
             </button>
-            <button className="topbar-icon-btn" title="Notifications">
-              <Bell size={18} />
-              <span className="dot-badge" />
-            </button>
+            <div style={{ position: "relative" }}>
+              <button
+                className="topbar-icon-btn"
+                title="Notifications"
+                onClick={() => setShowNotifications((prev) => !prev)}
+                aria-label="View notifications"
+              >
+                <Bell size={18} />
+                {unreadCount > 0 && <span className="dot-badge" />}
+              </button>
+
+              <NotificationPopover
+                isOpen={showNotifications}
+                onClose={() => setShowNotifications(false)}
+                notifications={notifications}
+                onMarkAsRead={handleMarkAsRead}
+                onMarkAllAsRead={handleMarkAllAsRead}
+                onClearAll={handleClearAllNotifications}
+                onDeleteNotification={handleDeleteNotification}
+                onNavigate={(page) => setActivePage(page)}
+              />
+            </div>
 
             <div
               className="user-profile-trigger"
