@@ -16,6 +16,7 @@ from app.api.analytic_accounts import router as analytic_accounts_router
 from app.api.budgets import router as budgets_router
 from app.api.reports import router as reports_router
 from app.api.dashboard import router as dashboard_router
+from app.api.ai import router as ai_router
 
 
 from app.db.database import Base, engine, SessionLocal
@@ -91,6 +92,7 @@ api_router.include_router(analytic_accounts_router)
 api_router.include_router(budgets_router)
 api_router.include_router(reports_router)
 api_router.include_router(dashboard_router)
+api_router.include_router(ai_router)
 
 app.include_router(api_router)
 
@@ -110,6 +112,7 @@ root_compat_router.include_router(analytic_accounts_router, include_in_schema=Fa
 root_compat_router.include_router(budgets_router, include_in_schema=False)
 root_compat_router.include_router(reports_router, include_in_schema=False)
 root_compat_router.include_router(dashboard_router, include_in_schema=False)
+root_compat_router.include_router(ai_router, include_in_schema=False)
 
 app.include_router(root_compat_router)
 

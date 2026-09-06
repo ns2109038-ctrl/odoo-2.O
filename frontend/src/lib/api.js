@@ -410,3 +410,68 @@ export const getBudgetReport = (params = {}) => {
 // ── 15. Dashboard ───────────────────────────────────────────────────────────
 export const getDashboardSummary = () => apiRequest("/api/dashboard/summary");
 export const getDashboardRecentTransactions = (limit = 10) => apiRequest(`/api/dashboard/recent-transactions?limit=${limit}`);
+
+// -- Password Reset ----------------------------------------------------------
+
+/**
+ * Request a password reset email
+ * @param {string} email
+ */
+export async function forgotPassword(email) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
+/**
+ * Reset password using a token from email
+ * @param {string} token
+ * @param {string} new_password
+ * @param {string} confirm_password
+ */
+export async function resetPassword(token, new_password, confirm_password) {
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, new_password, confirm_password }),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}
+
+/**
+ * AI Copilot chat request
+ */
+export async function postAiChat(message, history = [], active_page = "Dashboard") {
+  let res;
+  try {
+    const auth = getStoredAuth();
+    const headers = { "Content-Type": "application/json" };
+    if (auth?.token) {
+      headers["Authorization"] = `Bearer ${auth.token}`;
+    }
+    res = await fetch(`${API_BASE_URL}/api/ai/chat`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ message, history, active_page }),
+    });
+  } catch {
+    throw networkErr();
+  }
+  if (!res.ok) throw Object.assign(new Error(await parseError(res)), { status: res.status });
+  return res.json();
+}

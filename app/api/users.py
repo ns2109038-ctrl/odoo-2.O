@@ -47,6 +47,9 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer"}
 
 
+
+
+
 @router.get("", response_model=List[UserResponse])
 @router.get("/", response_model=List[UserResponse], include_in_schema=False)
 def read_all(

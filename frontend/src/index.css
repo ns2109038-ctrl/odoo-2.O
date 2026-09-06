@@ -147,6 +147,20 @@ body {
   background: var(--color-mocha);
   border: 1px solid rgba(204, 221, 226, 0.15);
   color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.sidebar-help:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #48acf0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-help:active {
+  transform: translateY(0);
 }
 
 .sidebar-help b {

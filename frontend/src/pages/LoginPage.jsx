@@ -6,12 +6,11 @@ import Button from "../components/ui/Button.jsx";
 import FormField from "../components/ui/FormField.jsx";
 import PasswordInput from "../components/ui/PasswordInput.jsx";
 
-export default function LoginPage({ onLoginSuccess, onGoSignup }) {
+export default function LoginPage({ onLoginSuccess, onGoSignup, onGoForgotPassword }) {
   const [form, setForm]       = useState({ login_id: "", password: "" });
   const [errors, setErrors]   = useState({});
   const [apiError, setApiError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [forgotMsg, setForgotMsg] = useState(false);
 
   const change = (e) => {
     const { name, value } = e.target;
@@ -109,14 +108,11 @@ export default function LoginPage({ onLoginSuccess, onGoSignup }) {
               <button
                 type="button"
                 className="auth-link-btn"
-                onClick={() => setForgotMsg((p) => !p)}
+                onClick={onGoForgotPassword}
               >
                 Forgot Password?
               </button>
             </div>
-            {forgotMsg && (
-              <Alert type="info">Password reset is coming soon. Please contact your administrator.</Alert>
-            )}
 
             <Button type="submit" variant="primary" loading={loading} fullWidth>
               {loading ? "Signing In..." : "Sign In"}

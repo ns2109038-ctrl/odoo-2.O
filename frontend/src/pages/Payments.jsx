@@ -8,6 +8,7 @@ import {
   getJournals,
 } from "../lib/api.js";
 import Alert from "../components/ui/Alert.jsx";
+import UpiQrPayModal from "../components/UpiQrPayModal.jsx";
 import {
   CreditCard,
   Plus,
@@ -21,7 +22,14 @@ import {
   FileCheck2,
   XCircle,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  QrCode,
+  Smartphone,
+  Sparkles,
+  Landmark,
+  Banknote,
+  Receipt,
+  Layers,
 } from "lucide-react";
 
 function Payments() {
@@ -36,13 +44,26 @@ function Payments() {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Standalone quick UPI QR modal state
+  const [showQuickUpi, setShowQuickUpi] = useState(false);
+  const [quickUpiAmount, setQuickUpiAmount] = useState("2500");
+  const [quickUpiContactId, setQuickUpiContactId] = useState("");
+  const [quickUpiNote, setQuickUpiNote] = useState("Counter Quick Payment");
+
+  // Row inspection UPI QR modal state
+  const [showRowUpiModal, setShowRowUpiModal] = useState(false);
+  const [selectedPaymentForQr, setSelectedPaymentForQr] = useState(null);
+
   const [form, setForm] = useState({
     payment_type: "customer_receipt",
+    payment_mode: "upi", // "upi" | "bank" | "cash" | "cheque"
     contact_id: "",
     journal_id: "",
     amount: "",
     reference: "",
     payment_date: new Date().toISOString().split("T")[0],
+    upi_app: "gpay",
+    upi_utr: "",
   });
 
   const loadData = async () => {
@@ -226,14 +247,45 @@ function Payments() {
     });
   };
 
+  const handleModeChange = (mode) => {
+    setForm((prev) => {
+      let nextJournalId = prev.journal_id;
+      if (mode === "upi") {
+        const upiJ = journals.find((j) =>
+          j.journal_name.toLowerCase().includes("upi") ||
+          j.journal_name.toLowerCase().includes("bank")
+        );
+        if (upiJ) nextJournalId = String(upiJ.id);
+      } else if (mode === "cash") {
+        const cashJ = journals.find((j) =>
+          j.journal_name.toLowerCase().includes("cash")
+        );
+        if (cashJ) nextJournalId = String(cashJ.id);
+      }
+      return {
+        ...prev,
+        payment_mode: mode,
+        journal_id: nextJournalId,
+      };
+    });
+  };
+
   const resetForm = () => {
+    const defJournal = journals.find((j) =>
+      j.journal_name.toLowerCase().includes("upi") ||
+      j.journal_name.toLowerCase().includes("bank")
+    ) || journals[0];
+
     setForm({
       payment_type: "customer_receipt",
+      payment_mode: "upi",
       contact_id: contacts[0]?.id ? String(contacts[0].id) : "",
-      journal_id: journals[0]?.id ? String(journals[0].id) : "",
+      journal_id: defJournal?.id ? String(defJournal.id) : "",
       amount: "",
       reference: "",
       payment_date: new Date().toISOString().split("T")[0],
+      upi_app: "gpay",
+      upi_utr: "",
     });
   };
 
@@ -255,6 +307,17 @@ function Payments() {
       return;
     }
 
+    let finalReference = form.reference.trim();
+    if (form.payment_mode === "upi") {
+      const appName = (form.upi_app || "UPI").toUpperCase();
+      const utr = (form.upi_utr || "").trim();
+      if (utr) {
+        finalReference = `UPI/${appName}: ${utr}`;
+      } else if (!finalReference) {
+        finalReference = `UPI/${appName}: QR-Paid`;
+      }
+    }
+
     setSubmitting(true);
     try {
       await createPayment({
@@ -262,7 +325,7 @@ function Payments() {
         contact_id: Number(form.contact_id),
         journal_id: Number(form.journal_id),
         amount: Number(form.amount),
-        reference: form.reference.trim() || null,
+        reference: finalReference || null,
         payment_date: form.payment_date,
       });
 
@@ -271,6 +334,32 @@ function Payments() {
       await loadData();
     } catch (err) {
       alert(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRecordQuickUpi = async ({ utr, app, amount }) => {
+    const contactId = quickUpiContactId ? Number(quickUpiContactId) : (contacts[0]?.id || 1);
+    const journalId = (journals.find((j) =>
+      j.journal_name.toLowerCase().includes("upi") ||
+      j.journal_name.toLowerCase().includes("bank")
+    ) || journals[0])?.id || 1;
+
+    setSubmitting(true);
+    try {
+      await createPayment({
+        payment_type: "customer_receipt",
+        contact_id: contactId,
+        journal_id: journalId,
+        amount: Number(amount),
+        reference: `UPI/${app.toUpperCase()}: ${utr}`,
+        payment_date: new Date().toISOString().split("T")[0],
+      });
+      setShowQuickUpi(false);
+      await loadData();
+    } catch (err) {
+      alert("Error recording quick UPI payment: " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -304,24 +393,63 @@ function Payments() {
       <div className="page-header" style={{ marginBottom: "20px" }}>
         <div>
           <p className="breadcrumb">Transactions / Payments</p>
-          <h1 style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <CreditCard size={26} style={{ color: "#48acf0" }} /> Payments & Receipts
+          <h1 style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{
+              background: "linear-gradient(135deg, #0284c7, #0369a1)",
+              borderRadius: "10px",
+              padding: "7px 9px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(2, 132, 199, 0.25)"
+            }}>
+              <Landmark size={22} style={{ color: "#ffffff" }} />
+            </div>
+            Payments &amp; Receipts
           </h1>
           <p className="subtitle">
             Manage inbound customer payments, outbound vendor disbursements, and bank settlements.
           </p>
         </div>
 
-        <button
-          className="primary-btn"
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          style={{ display: "flex", alignItems: "center", gap: "6px" }}
-        >
-          <Plus size={16} /> Record Payment
-        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setQuickUpiAmount("2500");
+              setQuickUpiNote("Instant Counter Settlement");
+              if (contacts.length > 0) setQuickUpiContactId(String(contacts[0].id));
+              setShowQuickUpi(true);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "#e0f2fe",
+              color: "#0284c7",
+              border: "1px solid #7dd3fc",
+              padding: "9px 16px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: "700",
+              cursor: "pointer",
+              boxShadow: "0 2px 6px rgba(2, 132, 199, 0.15)",
+            }}
+          >
+            <QrCode size={16} /> Instant UPI QR
+          </button>
+
+          <button
+            className="primary-btn"
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+          >
+            <Plus size={16} /> Record Payment
+          </button>
+        </div>
       </div>
 
       {error && <Alert type="error" style={{ marginBottom: "16px" }}>{error}</Alert>}
@@ -402,11 +530,12 @@ function Payments() {
               style={{
                 border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px",
                 fontWeight: "600", cursor: "pointer",
-                background: filterType === "All" ? "#48acf0" : "#f4f8fb",
-                color: filterType === "All" ? "#ffffff" : "#594236"
+                background: filterType === "All" ? "#0284c7" : "#f4f8fb",
+                color: filterType === "All" ? "#ffffff" : "#594236",
+                display: "inline-flex", alignItems: "center", gap: "5px"
               }}
             >
-              All Types
+              <Layers size={13} /> All Types
             </button>
             <button
               onClick={() => setFilterType("customer_receipt")}
@@ -414,10 +543,11 @@ function Payments() {
                 border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px",
                 fontWeight: "600", cursor: "pointer",
                 background: filterType === "customer_receipt" ? "#166534" : "#f4f8fb",
-                color: filterType === "customer_receipt" ? "#ffffff" : "#594236"
+                color: filterType === "customer_receipt" ? "#ffffff" : "#594236",
+                display: "inline-flex", alignItems: "center", gap: "5px"
               }}
             >
-              Receipts 📥
+              <ArrowDownLeft size={13} /> Receipts
             </button>
             <button
               onClick={() => setFilterType("vendor_payment")}
@@ -425,10 +555,11 @@ function Payments() {
                 border: "none", padding: "6px 14px", borderRadius: "6px", fontSize: "12px",
                 fontWeight: "600", cursor: "pointer",
                 background: filterType === "vendor_payment" ? "#dc2626" : "#f4f8fb",
-                color: filterType === "vendor_payment" ? "#ffffff" : "#594236"
+                color: filterType === "vendor_payment" ? "#ffffff" : "#594236",
+                display: "inline-flex", alignItems: "center", gap: "5px"
               }}
             >
-              Payments 📤
+              <ArrowUpRight size={13} /> Payments
             </button>
           </div>
         </div>
@@ -494,7 +625,25 @@ function Payments() {
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px", color: "#6f584b", fontFamily: "monospace" }}>{p.reference}</td>
+                      <td style={{ padding: "14px 18px", color: "#6f584b", fontFamily: "monospace" }}>
+                        {p.reference && (p.reference.toLowerCase().includes("upi") || p.method?.toLowerCase().includes("upi")) ? (
+                          <span style={{
+                            background: "#e0f2fe",
+                            color: "#0284c7",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}>
+                            <QrCode size={12} /> {p.reference}
+                          </span>
+                        ) : (
+                          p.reference
+                        )}
+                      </td>
 
                       <td style={{ padding: "14px 18px" }}>
                         <span style={{
@@ -525,7 +674,32 @@ function Payments() {
                         </span>
                       </td>
 
-                      <td style={{ padding: "14px 18px", textAlign: "right" }}>
+                      <td style={{ padding: "14px 18px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPaymentForQr(p);
+                            setShowRowUpiModal(true);
+                          }}
+                          title="Show UPI QR Code & App Links"
+                          style={{
+                            background: "#e0f2fe",
+                            color: "#0284c7",
+                            border: "1px solid #7dd3fc",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            marginRight: "6px",
+                          }}
+                        >
+                          <QrCode size={12} /> QR
+                        </button>
+
                         {p.status === "Draft" ? (
                           <button
                             onClick={() => handlePost(p.id)}
@@ -581,21 +755,22 @@ function Payments() {
           <div
             className="modal-box"
             style={{
-              background: "#ffffff", borderRadius: "14px", width: "100%", maxWidth: "600px",
-              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)", overflow: "hidden", border: "1px solid #ccdde2"
+              background: "#ffffff", borderRadius: "14px", width: "100%", maxWidth: "760px",
+              boxShadow: "0 20px 40px rgba(0, 0, 0, 0.2)", overflow: "hidden", border: "1px solid #ccdde2",
+              maxHeight: "90vh", display: "flex", flexDirection: "column",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header" style={{
               background: "linear-gradient(135deg, #594236, #6f584b)", color: "#ffffff",
-              padding: "18px 24px", display: "flex", justifyContent: "space-between", alignItems: "center"
+              padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center"
             }}>
               <div>
                 <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "700", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <CreditCard size={18} style={{ color: "#48acf0" }} /> Record Payment / Receipt
+                  <CreditCard size={18} style={{ color: "#48acf0" }} /> Record Payment / Settlement
                 </h2>
-                <p style={{ margin: "4px 0 0", fontSize: "12px", color: "#ccdde2", opacity: 0.9 }}>
-                  Enter payment details for bank or cash settlement
+                <p style={{ margin: "3px 0 0", fontSize: "12px", color: "#ccdde2", opacity: 0.9 }}>
+                  Enter payment details for UPI, QR Code, bank, or cash settlement
                 </p>
               </div>
 
@@ -611,8 +786,9 @@ function Payments() {
               </button>
             </div>
 
-            <form onSubmit={handleSave} style={{ padding: "24px" }}>
-              <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <form onSubmit={handleSave} style={{ padding: "20px 24px", overflowY: "auto" }}>
+              <div className="form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                {/* PAYMENT TYPE */}
                 <div className="form-group" style={{ gridColumn: "span 2" }}>
                   <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
                     Payment Type *
@@ -630,7 +806,7 @@ function Payments() {
                         checked={form.payment_type === "customer_receipt"}
                         onChange={handleFormChange}
                       />
-                      Customer Receipt 📥
+                      <ArrowDownLeft size={16} style={{ color: "#166534" }} /> Customer Receipt
                     </label>
 
                     <label style={{
@@ -645,12 +821,54 @@ function Payments() {
                         checked={form.payment_type === "vendor_payment"}
                         onChange={handleFormChange}
                       />
-                      Vendor Payment 📤
+                      <ArrowUpRight size={16} style={{ color: "#dc2626" }} /> Vendor Payment
                     </label>
                   </div>
                 </div>
 
+                {/* PAYMENT METHOD / CHANNEL SELECTOR */}
                 <div className="form-group" style={{ gridColumn: "span 2" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
+                    Payment Method / Settlement Channel *
+                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+                    {[
+                      { id: "upi", label: "UPI & QR Code", icon: <QrCode size={16} style={{ color: "#0284c7" }} />, badge: "GPay • PhonePe • Paytm" },
+                      { id: "bank", label: "Bank Transfer", icon: <Landmark size={16} style={{ color: "#2563eb" }} />, badge: "NEFT / RTGS / IMPS" },
+                      { id: "cash", label: "Cash", icon: <Banknote size={16} style={{ color: "#16a34a" }} />, badge: "Counter Cash" },
+                      { id: "cheque", label: "Cheque", icon: <Receipt size={16} style={{ color: "#d97706" }} />, badge: "Bank Cheque" },
+                    ].map((mode) => {
+                      const isSelected = form.payment_mode === mode.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => handleModeChange(mode.id)}
+                          style={{
+                            border: isSelected ? "2px solid #0284c7" : "1px solid #cbd5e1",
+                            background: isSelected ? "#f0f9ff" : "#ffffff",
+                            borderRadius: "8px",
+                            padding: "8px 10px",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            transition: "all 0.15s ease",
+                            boxShadow: isSelected ? "0 2px 6px rgba(2, 132, 199, 0.15)" : "none",
+                          }}
+                        >
+                          <div style={{ fontSize: "12px", fontWeight: "700", color: isSelected ? "#0284c7" : "#334155", display: "flex", alignItems: "center", gap: "6px" }}>
+                            {mode.icon} <span>{mode.label}</span>
+                          </div>
+                          <div style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>
+                            {mode.badge}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* PARTY / CONTACT */}
+                <div className="form-group">
                   <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
                     Party / Contact *
                   </label>
@@ -673,6 +891,52 @@ function Payments() {
                   </select>
                 </div>
 
+                {/* PAYMENT JOURNAL */}
+                <div className="form-group">
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
+                    Payment Journal *
+                  </label>
+                  <select
+                    name="journal_id"
+                    value={form.journal_id}
+                    onChange={handleFormChange}
+                    required
+                    style={{
+                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
+                      padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
+                    }}
+                  >
+                    <option value="">Select Journal</option>
+                    {journals.map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.journal_name} ({j.journal_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* PAYMENT AMOUNT */}
+                <div className="form-group">
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
+                    Payment Amount (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    name="amount"
+                    value={form.amount}
+                    onChange={handleFormChange}
+                    placeholder="Enter amount e.g. 45000"
+                    required
+                    style={{
+                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
+                      padding: "0 12px", fontSize: "13px", outline: "none", fontWeight: "700"
+                    }}
+                  />
+                </div>
+
+                {/* PAYMENT DATE */}
                 <div className="form-group">
                   <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
                     Payment Date *
@@ -690,69 +954,39 @@ function Payments() {
                   />
                 </div>
 
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                    Payment Journal *
-                  </label>
-                  <select
-                    name="journal_id"
-                    value={form.journal_id}
-                    onChange={handleFormChange}
-                    required
-                    style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none", background: "#ffffff"
-                    }}
-                  >
-                    <option value="">Select Bank / Cash Journal</option>
-                    {journals.map((j) => (
-                      <option key={j.id} value={j.id}>
-                        {j.journal_name} ({j.journal_type})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                    Payment Amount (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    name="amount"
-                    value={form.amount}
-                    onChange={handleFormChange}
-                    placeholder="Enter amount e.g. 45000"
-                    required
-                    style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none"
-                    }}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
-                    Reference / Invoice #
-                  </label>
-                  <input
-                    type="text"
-                    name="reference"
-                    value={form.reference}
-                    onChange={handleFormChange}
-                    placeholder="e.g. INV-2026-001 / BILL-8821"
-                    style={{
-                      width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
-                      padding: "0 12px", fontSize: "13px", outline: "none"
-                    }}
-                  />
-                </div>
+                {/* INLINE UPI QR & APPS PANEL (WHEN UPI MODE ACTIVE) */}
+                {form.payment_mode === "upi" ? (
+                  <div style={{ gridColumn: "span 2", marginTop: "4px" }}>
+                    <UpiQrPayModal
+                      amount={form.amount}
+                      reference={form.reference || contacts.find((c) => String(c.id) === form.contact_id)?.name || "Urban Furniture"}
+                      initialUtr={form.upi_utr}
+                      onChangeUtr={(utr) => setForm((prev) => ({ ...prev, upi_utr: utr }))}
+                      isStandalone={false}
+                    />
+                  </div>
+                ) : (
+                  <div className="form-group" style={{ gridColumn: "span 2" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#594236", marginBottom: "6px" }}>
+                      Reference / Invoice / Instrument #
+                    </label>
+                    <input
+                      type="text"
+                      name="reference"
+                      value={form.reference}
+                      onChange={handleFormChange}
+                      placeholder="e.g. INV-2026-001 / Cheque #891234 / NEFT-2891"
+                      style={{
+                        width: "100%", height: "40px", borderRadius: "8px", border: "1px solid #93a3bc",
+                        padding: "0 12px", fontSize: "13px", outline: "none"
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="form-actions" style={{
-                display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "24px", paddingTop: "16px",
+                display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "20px", paddingTop: "16px",
                 borderTop: "1px solid #e2e8f0"
               }}>
                 <button
@@ -776,16 +1010,123 @@ function Payments() {
                   className="primary-btn"
                   disabled={submitting}
                   style={{
-                    background: "#48acf0", border: "none", color: "#ffffff",
-                    padding: "9px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer"
+                    background: form.payment_mode === "upi"
+                      ? "linear-gradient(135deg, #0284c7, #0369a1)"
+                      : "#48acf0",
+                    border: "none", color: "#ffffff",
+                    padding: "9px 22px", borderRadius: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer",
+                    display: "inline-flex", alignItems: "center", gap: "6px",
+                    boxShadow: "0 2px 8px rgba(2, 132, 199, 0.25)"
                   }}
                 >
-                  {submitting ? "Saving..." : "Record Payment"}
+                  {submitting ? (
+                    "Saving..."
+                  ) : form.payment_mode === "upi" ? (
+                    <>
+                      <CheckCircle2 size={16} /> Verify &amp; Record UPI Settlement
+                    </>
+                  ) : (
+                    "Record Payment"
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {/* STANDALONE QUICK UPI QR MODAL */}
+      {showQuickUpi && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowQuickUpi(false)}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: "20px"
+          }}
+        >
+          <div
+            className="modal-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#ffffff", borderRadius: "14px", width: "100%", maxWidth: "680px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", overflow: "hidden", border: "1px solid #ccdde2"
+            }}
+          >
+            <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b" }}>Quick Amount (₹):</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="0.01"
+                  value={quickUpiAmount}
+                  onChange={(e) => setQuickUpiAmount(e.target.value)}
+                  style={{ width: "100%", height: "34px", padding: "0 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "14px", fontWeight: "700", fontFamily: "monospace", marginTop: "2px" }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b" }}>Customer / Contact:</label>
+                <select
+                  value={quickUpiContactId}
+                  onChange={(e) => setQuickUpiContactId(e.target.value)}
+                  style={{ width: "100%", height: "34px", padding: "0 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", marginTop: "2px" }}
+                >
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: "700", color: "#64748b" }}>Payment Note:</label>
+                <input
+                  type="text"
+                  value={quickUpiNote}
+                  onChange={(e) => setQuickUpiNote(e.target.value)}
+                  style={{ width: "100%", height: "34px", padding: "0 8px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", marginTop: "2px" }}
+                />
+              </div>
+            </div>
+
+            <UpiQrPayModal
+              amount={quickUpiAmount}
+              reference={quickUpiNote}
+              onConfirmPayment={handleRecordQuickUpi}
+              onClose={() => setShowQuickUpi(false)}
+              isStandalone={false}
+            />
+
+            <div style={{ padding: "12px 20px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setShowQuickUpi(false)}
+                style={{
+                  background: "#ffffff", border: "1px solid #cbd5e1", color: "#475569",
+                  padding: "7px 16px", borderRadius: "6px", fontSize: "12px", fontWeight: "600", cursor: "pointer"
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ROW INSPECTION UPI QR MODAL */}
+      {showRowUpiModal && selectedPaymentForQr && (
+        <UpiQrPayModal
+          amount={selectedPaymentForQr.amount}
+          reference={selectedPaymentForQr.reference !== "-" ? selectedPaymentForQr.reference : selectedPaymentForQr.paymentNo}
+          transactionNote={`Settlement ${selectedPaymentForQr.paymentNo}`}
+          onClose={() => {
+            setShowRowUpiModal(false);
+            setSelectedPaymentForQr(null);
+          }}
+          isStandalone={true}
+        />
       )}
     </div>
   );

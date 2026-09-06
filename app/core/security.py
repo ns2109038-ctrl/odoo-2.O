@@ -174,3 +174,32 @@ def require_roles(*allowed_roles: str) -> Callable[[User], User]:
         return current_user
 
     return role_checker
+
+
+RESET_TOKEN_EXPIRE_MINUTES = 30
+
+
+def create_password_reset_token(user_id: int, email: str, login_id: str) -> str:
+    """Creates a signed, time-limited JWT specifically for password resets."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "login_id": login_id,
+        "purpose": "password_reset",
+        "exp": expire,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_password_reset_token(token: str) -> dict:
+    """Validates and decodes a password reset JWT token."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "password_reset":
+            raise ValueError("Invalid reset token purpose")
+        return payload
+    except ExpiredSignatureError:
+        raise ValueError("Password reset link has expired. Please request a new one.")
+    except JWTError:
+        raise ValueError("Invalid or corrupted password reset link.")

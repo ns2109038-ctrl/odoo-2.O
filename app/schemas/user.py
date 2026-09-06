@@ -76,3 +76,26 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str
+
+
+class PasswordResetRequest(BaseModel):
+    identifier: Optional[str] = Field(None, description="User Login ID or Email")
+    email: Optional[str] = Field(None, description="User Email")
+    login_id: Optional[str] = Field(None, description="User Login ID")
+
+    def get_identifier(self) -> str:
+        ident = self.identifier or self.email or self.login_id or ""
+        return ident.strip()
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(..., min_length=1, description="Password reset token")
+    new_password: str = Field(..., description="New password")
+    confirm_password: Optional[str] = Field(None, description="Confirm new password")
+
+    @model_validator(mode="after")
+    def validate_passwords(self):
+        validate_password_strength(self.new_password)
+        if self.confirm_password is not None and self.new_password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self

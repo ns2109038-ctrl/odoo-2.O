@@ -10,8 +10,10 @@ import {
   Filter,
   X,
   FileCheck2,
-  ArrowDownLeft
+  ArrowDownLeft,
+  QrCode,
 } from "lucide-react";
+import UpiQrPayModal from "../components/UpiQrPayModal.jsx";
 import {
   getSalesOrders,
   createSalesOrder,
@@ -693,6 +695,73 @@ export default function Sales({ initialTab = "orders" } = {}) {
                 <button type="submit" disabled={submitting} style={{ background: "#48acf0", border: "none", color: "#fff", padding: "9px 20px", borderRadius: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>{submitting ? "Saving..." : "Create Order"}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* INVOICE UPI QR PAYMENT MODAL */}
+      {showPaymentModal && selectedInvoice && (
+        <div
+          className="modal-overlay"
+          onClick={() => { setShowPaymentModal(false); setSelectedInvoice(null); }}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: "20px"
+          }}
+        >
+          <div
+            className="modal-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#ffffff", borderRadius: "14px", width: "100%", maxWidth: "680px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", overflow: "hidden", border: "1px solid #ccdde2"
+            }}
+          >
+            <UpiQrPayModal
+              amount={selectedInvoice.amount - (selectedInvoice.paid || 0)}
+              reference={selectedInvoice.invoiceNo}
+              transactionNote={`Invoice ${selectedInvoice.invoiceNo}`}
+              onConfirmPayment={async ({ utr, app, amount }) => {
+                const journalId = (journals.find((j) => j.journal_name.toLowerCase().includes("upi") || j.journal_name.toLowerCase().includes("bank")) || journals[0])?.id || 1;
+                setSubmitting(true);
+                try {
+                  await createPayment({
+                    payment_type: "customer_receipt",
+                    contact_id: Number(paymentForm.contact_id || selectedInvoice.customer_id || (customers[0]?.id || 1)),
+                    journal_id: journalId,
+                    amount: Number(amount),
+                    reference: `UPI/${app.toUpperCase()}: ${utr} (${selectedInvoice.invoiceNo})`,
+                    payment_date: new Date().toISOString().split("T")[0],
+                  });
+                  setShowPaymentModal(false);
+                  setSelectedInvoice(null);
+                  await loadData();
+                } catch (err) {
+                  alert("Failed to record payment: " + err.message);
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              onClose={() => {
+                setShowPaymentModal(false);
+                setSelectedInvoice(null);
+              }}
+              isStandalone={false}
+            />
+
+            <div style={{ padding: "12px 20px", background: "#f8fafc", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => { setShowPaymentModal(false); setSelectedInvoice(null); }}
+                style={{
+                  background: "#ffffff", border: "1px solid #cbd5e1", color: "#475569",
+                  padding: "7px 16px", borderRadius: "6px", fontSize: "12px", fontWeight: "600", cursor: "pointer"
+                }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

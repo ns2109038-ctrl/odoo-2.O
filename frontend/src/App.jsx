@@ -23,9 +23,13 @@ import {
 
 // ── Auth ──────────────────────────────────────────────────────────
 import { getStoredAuth, clearAuth } from "./lib/auth.js";
-import LoginPage    from "./pages/LoginPage.jsx";
-import SignupPage   from "./pages/SignupPage.jsx";
+import LoginPage           from "./pages/LoginPage.jsx";
+import SignupPage          from "./pages/SignupPage.jsx";
+import ForgotPasswordPage  from "./pages/ForgotPasswordPage.jsx";
+import ResetPasswordPage   from "./pages/ResetPasswordPage.jsx";
 import AccountSecurityModal from "./components/AccountSecurityModal.jsx";
+import HelpSupportModal    from "./components/HelpSupportModal.jsx";
+import AiChatbot           from "./components/AiChatbot.jsx";
 
 // ── Authenticated pages ───────────────────────────────────────────
 import Contacts       from "./pages/Contacts.jsx";
@@ -43,8 +47,16 @@ import Dashboard      from "./pages/Dashboard.jsx";
 
 // ─────────────────────────────────────────────────────────────────
 function App() {
-  // Auth view: "login" | "signup"
-  const [authView, setAuthView] = useState("login");
+  // Auth view: "login" | "signup" | "forgot" | "reset"
+  // Detect password reset token in URL on mount
+  const [resetToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("token") || null;
+  });
+  const [authView, setAuthView] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("token") ? "reset" : "login";
+  });
 
   // Authenticated user state — initialized from sessionStorage
   const [authUser, setAuthUser] = useState(() => getStoredAuth());
@@ -54,6 +66,9 @@ function App() {
 
   // Security modal open state
   const [showSecurityModal, setShowSecurityModal] = useState(false);
+
+  // Help & Support modal open state
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // ── Auth Expired Listener ────────────────────────────────────────
   useEffect(() => {
@@ -73,6 +88,25 @@ function App() {
 
   // ── Auth gate ────────────────────────────────────────────────────
   if (!authUser) {
+    if (authView === "reset") {
+      return (
+        <ResetPasswordPage
+          token={resetToken}
+          onGoLogin={() => {
+            // Clear the ?token= and path from URL and return to root login
+            window.history.replaceState({}, "", "/");
+            setAuthView("login");
+          }}
+        />
+      );
+    }
+    if (authView === "forgot") {
+      return (
+        <ForgotPasswordPage
+          onGoLogin={() => setAuthView("login")}
+        />
+      );
+    }
     if (authView === "signup") {
       return (
         <SignupPage
@@ -83,6 +117,7 @@ function App() {
     return (
       <LoginPage
         onGoSignup={() => setAuthView("signup")}
+        onGoForgotPassword={() => setAuthView("forgot")}
         onLoginSuccess={(user) => {
           setAuthUser(user);
           setActivePage("Dashboard");
@@ -241,12 +276,22 @@ function App() {
           </button>
         </div>
 
-        <div className="sidebar-help">
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-            <HelpCircle size={15} style={{ color: "#48acf0" }} />
-            <b>Need Help?</b>
+        <div
+          className="sidebar-help"
+          onClick={() => setShowHelpModal(true)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setShowHelpModal(true); }}
+          title="Click to get support, open a ticket, or view system status"
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <HelpCircle size={15} style={{ color: "#48acf0" }} />
+              <b>Need Help?</b>
+            </div>
+            <span style={{ fontSize: "10px", background: "rgba(72,172,240,0.15)", color: "#48acf0", padding: "1px 6px", borderRadius: "10px", fontWeight: 600 }}>24/7</span>
           </div>
-          <p>Contact system support</p>
+          <p>Contact system support & docs &rarr;</p>
         </div>
 
       </aside>
@@ -313,6 +358,21 @@ function App() {
           }}
         />
       )}
+
+      {/* ═══════════════ HELP & SUPPORT / SYSTEM STATUS MODAL ═══════════════ */}
+      {showHelpModal && (
+        <HelpSupportModal
+          authUser={authUser}
+          onClose={() => setShowHelpModal(false)}
+        />
+      )}
+
+      {/* ═══════════════ AI COPILOT CHATBOT ═══════════════ */}
+      <AiChatbot
+        activePage={activePage}
+        setActivePage={setActivePage}
+        authUser={authUser}
+      />
 
     </div>
   );
