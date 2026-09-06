@@ -15,8 +15,8 @@ client = TestClient(app)
 print("=== 1. Checking OpenAPI & Endpoints ===")
 openapi = client.get("/openapi.json").json()
 paths = openapi.get("paths", {})
-assert "/journal-entries/" in paths, "Missing /journal-entries/ endpoint"
-assert "/journal-entries/{entry_id}" in paths, "Missing /journal-entries/{entry_id} endpoint"
+assert "/journal-entries/" in paths or "/api/journal-entries/" in paths, "Missing /journal-entries/ endpoint"
+assert "/journal-entries/{entry_id}" in paths or "/api/journal-entries/{entry_id}" in paths, "Missing /journal-entries/{entry_id} endpoint"
 print("Verified endpoints exist: POST /journal-entries/, GET /journal-entries/, GET /journal-entries/{entry_id}")
 
 # ── Auth setup ────────────────────────────────────────────────────────────────
@@ -43,11 +43,46 @@ _auth_headers = {"Authorization": f"Bearer {_token}"}
 # ─────────────────────────────────────────────────────────────────────────────
 
 db = SessionLocal()
+
+# Ensure accounts exist
+cash_account = db.query(Account).filter((Account.name == "Cash") | (Account.account_name == "Cash")).first()
+if not cash_account:
+    cash_account = Account(code="1000", name="Cash", account_name="Cash", account_type="Asset", is_active=True)
+    db.add(cash_account)
+
+bank_account = db.query(Account).filter((Account.name == "Bank") | (Account.account_name == "Bank")).first()
+if not bank_account:
+    bank_account = Account(code="1010", name="Bank", account_name="Bank", account_type="Asset", is_active=True)
+    db.add(bank_account)
+
+receivable_account = db.query(Account).filter((Account.name == "Customer Receivable") | (Account.account_name == "Customer Receivable")).first()
+if not receivable_account:
+    receivable_account = Account(code="1100", name="Customer Receivable", account_name="Customer Receivable", account_type="Asset", is_active=True)
+    db.add(receivable_account)
+
+income_account = db.query(Account).filter((Account.name == "Sales Income") | (Account.account_name == "Sales Income")).first()
+if not income_account:
+    income_account = Account(code="4000", name="Sales Income", account_name="Sales Income", account_type="Income", is_active=True)
+    db.add(income_account)
+
+db.commit()
+db.refresh(cash_account)
+db.refresh(bank_account)
+db.refresh(receivable_account)
+db.refresh(income_account)
+
 sales_journal = db.query(Journal).filter(Journal.journal_name == "Sales Journal").first()
-cash_account = db.query(Account).filter(Account.account_name == "Cash").first()
-bank_account = db.query(Account).filter(Account.account_name == "Bank").first()
-receivable_account = db.query(Account).filter(Account.account_name == "Customer Receivable").first()
-income_account = db.query(Account).filter(Account.account_name == "Sales Income").first()
+if not sales_journal:
+    sales_journal = Journal(
+        journal_name="Sales Journal",
+        journal_type="Sales",
+        default_debit_account_id=receivable_account.id,
+        default_credit_account_id=income_account.id,
+        is_active=True
+    )
+    db.add(sales_journal)
+    db.commit()
+    db.refresh(sales_journal)
 
 journal_id = sales_journal.id
 receivable_id = receivable_account.id
@@ -174,7 +209,7 @@ print("Non-existent account rejected:", res_bad_acc.json()["detail"])
 print("\n=== 8. Testing Inactive Account ===")
 inactive_acc = db.query(Account).filter(Account.account_name == "Temp Inactive Acc 2").first()
 if not inactive_acc:
-    inactive_acc = Account(account_name="Temp Inactive Acc 2", account_type="Asset", is_active=False)
+    inactive_acc = Account(code="TMP999", name="Temp Inactive Acc 2", account_name="Temp Inactive Acc 2", account_type="Asset", is_active=False)
     db.add(inactive_acc)
     db.commit()
     db.refresh(inactive_acc)

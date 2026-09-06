@@ -11,6 +11,8 @@ from app.models.invoice import Invoice, InvoiceLine
 from app.models.payment import Payment
 from app.models.analytic_account import AnalyticAccount
 from app.models.budget import Budget, BudgetLine
+from app.models.login_history import LoginHistory
+from app.models.active_session import ActiveSession
 
 __all__ = [
     "Base",
@@ -31,4 +33,6 @@ __all__ = [
     "AnalyticAccount",
     "Budget",
     "BudgetLine",
+    "LoginHistory",
+    "ActiveSession",
 ]

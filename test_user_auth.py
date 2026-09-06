@@ -40,8 +40,8 @@ assert "password_hash" not in user_resp, "Password hash must not be returned in 
 db = SessionLocal()
 db_user = db.query(User).filter(User.login_id == "admin01").first()
 assert db_user is not None
-assert db_user.password_hash != "Admin123!", "Plain text password found in DB!"
-assert db_user.password_hash.startswith("$2b$") or db_user.password_hash.startswith("$2a$"), "Invalid bcrypt hash in DB!"
+assert str(db_user.password_hash) != "Admin123!", "Plain text password found in DB!"
+assert str(db_user.password_hash).startswith("$2b$") or str(db_user.password_hash).startswith("$2a$"), "Invalid bcrypt hash in DB!"
 print("Verified in PostgreSQL: Plain-text password is NOT stored; bcrypt hash is stored:", db_user.password_hash[:25] + "...")
 db.close()
 

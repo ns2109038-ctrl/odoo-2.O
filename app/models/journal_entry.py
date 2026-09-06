@@ -22,7 +22,7 @@ class JournalEntry(Base):
 
     journal = relationship("Journal")
     user = relationship("User", foreign_keys=[created_by])
-    lines = relationship("JournalEntryLine", back_populates="journal_entry", cascade="all, delete-orphan", lazy="joined")
+    lines = relationship("JournalEntryLine", back_populates="journal_entry", cascade="all, delete-orphan", lazy="selectin")
     items = synonym("lines")
 
     def __init__(self, **kwargs):

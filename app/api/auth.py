@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 import os
@@ -8,6 +8,7 @@ from app.models.user import User
 from app.schemas.auth import AuthLoginRequest, AuthLoginResponse
 from app.schemas.user import UserResponse
 from app.services.auth_service import authenticate_user_credentials
+from app.services.user_service import log_login_event
 from app.core.security import (
     create_access_token,
     get_current_user,
@@ -27,31 +28,40 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
+from typing import Optional
+
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
-    confirm_password: str
+    confirm_password: Optional[str] = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=AuthLoginResponse)
-def login(credentials: AuthLoginRequest, db: Session = Depends(get_db)):
+def login(credentials: AuthLoginRequest, request: Request, db: Session = Depends(get_db)):
     identifier = credentials.get_login_identifier()
     user, error = authenticate_user_credentials(db, identifier, credentials.password)
 
+    client_ip = request.client.host if (request and request.client) else "127.0.0.1"
+
     if error == "User account is inactive":
+        if user:
+            log_login_event(db, login_id=user.login_id, name=user.name, role=user.role, status="Failed (Inactive Account)", method="Password", ip=client_ip, user_id=user.id)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive or disabled",
         )
 
     if not user:
+        log_login_event(db, login_id=identifier, name=identifier, role="user", status="Failed (Invalid Credentials)", method="Password", ip=client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Login ID/Email or Password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    log_login_event(db, login_id=user.login_id, name=user.name, role=user.role, status="Success", method="Password", ip=client_ip, user_id=user.id)
 
     token = create_access_token(user.id, user.role)
     return {
@@ -60,6 +70,7 @@ def login(credentials: AuthLoginRequest, db: Session = Depends(get_db)):
         "role": user.role,
         "user": user,
     }
+
 
 
 @router.get("/me", response_model=UserResponse)
@@ -115,7 +126,8 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     Validate the reset token and update the user's password.
     """
     # Validate passwords match
-    if body.new_password != body.confirm_password:
+    conf_pw = body.confirm_password if body.confirm_password is not None else body.new_password
+    if body.new_password != conf_pw:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Passwords do not match.",

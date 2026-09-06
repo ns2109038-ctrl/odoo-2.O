@@ -23,7 +23,7 @@ class SalesOrder(Base):
 
     customer = relationship("Contact", foreign_keys=[customer_id], lazy="joined")
     user = relationship("User", foreign_keys=[created_by], lazy="select")
-    lines = relationship("SalesOrderLine", back_populates="sales_order", cascade="all, delete-orphan", lazy="joined")
+    lines = relationship("SalesOrderLine", back_populates="sales_order", cascade="all, delete-orphan", lazy="selectin")
 
 
 class SalesOrderLine(Base):

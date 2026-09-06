@@ -112,7 +112,7 @@ function LoginPage({ onGoSignUp, onLoginSuccess }) {
             <button type="button" onClick={() => setShowPw(p => !p)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: "16px" }}>{showPw ? "??" : "??"}</button>
           </div>
           <button type="submit" disabled={loading} style={{ ...shared.primaryBtn, opacity: loading ? 0.7 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
-            {loading ? "Signing in…" : "SIGN IN"}
+            {loading ? "Signing inÂ…" : "SIGN IN"}
           </button>
         </form>
         <div style={shared.linkRow}>
@@ -187,27 +187,27 @@ function SignUpPage({ onGoLogin }) {
         {success && (
           <div style={shared.successBox}>
             <strong>? Account created!</strong><br />
-            Login ID: <strong>{success.login_id}</strong> · ID #{success.id}<br />
+            Login ID: <strong>{success.login_id}</strong> Â· ID #{success.id}<br />
             <span style={{ fontSize: "11px", opacity: 0.7 }}>You can now sign in with your credentials.</span>
           </div>
         )}
         <form onSubmit={handleSubmit}>
-          <label style={shared.label}>Enter Login ID (6–12 chars)</label>
+          <label style={shared.label}>Enter Login ID (6Â–12 chars)</label>
           <input style={shared.input} type="text" name="login_id" value={form.login_id} onChange={handleChange} placeholder="e.g. john99" autoComplete="username" />
           <label style={shared.label}>Enter Email ID</label>
           <input style={shared.input} type="email" name="email" value={form.email} onChange={handleChange} placeholder="you@example.com" autoComplete="email" />
           <label style={shared.label}>Enter Password</label>
           <div style={{ position: "relative" }}>
-            <input style={{ ...shared.input, paddingRight: "48px" }} type={showPw ? "text" : "password"} name="password" value={form.password} onChange={handleChange} placeholder="Min 8 · Aa · special char" autoComplete="new-password" />
+            <input style={{ ...shared.input, paddingRight: "48px" }} type={showPw ? "text" : "password"} name="password" value={form.password} onChange={handleChange} placeholder="Min 8 Â· Aa Â· special char" autoComplete="new-password" />
             <button type="button" onClick={() => setShowPw(p => !p)} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: "16px" }}>{showPw ? "??" : "??"}</button>
           </div>
           <label style={shared.label}>Re-Enter Password</label>
           <input style={shared.input} type={showPw ? "text" : "password"} name="confirm_password" value={form.confirm_password} onChange={handleChange} placeholder="Confirm your password" autoComplete="new-password" />
           <p style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", marginTop: "8px", lineHeight: "1.7" }}>
-            Must have &gt;8 chars · lowercase · UPPERCASE · special character
+            Must have &gt;8 chars Â· lowercase Â· UPPERCASE Â· special character
           </p>
           <button type="submit" disabled={loading} style={{ ...shared.primaryBtn, background: "linear-gradient(135deg,#059669,#047857)", boxShadow: "0 4px 20px rgba(5,150,105,0.4)", opacity: loading ? 0.7 : 1, cursor: loading ? "not-allowed" : "pointer" }}>
-            {loading ? "Creating account…" : "SIGN UP"}
+            {loading ? "Creating accountÂ…" : "SIGN UP"}
           </button>
         </form>
         <div style={shared.linkRow}>

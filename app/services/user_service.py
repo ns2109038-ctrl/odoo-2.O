@@ -169,3 +169,81 @@ def authenticate_user(
         return None
 
     return user
+
+
+from datetime import datetime
+from app.models.login_history import LoginHistory
+from app.models.active_session import ActiveSession
+
+
+def log_login_event(
+    db: Session,
+    login_id: str,
+    name: str,
+    role: str,
+    status: str = "Success",
+    method: str = "Password",
+    ip: str = "127.0.0.1",
+    user_id: Optional[int] = None,
+) -> LoginHistory:
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = LoginHistory(
+        user_id=user_id,
+        login_id=login_id,
+        name=name,
+        role=role,
+        timestamp=now_str,
+        ip=ip,
+        status=status,
+        method=method,
+    )
+    db.add(entry)
+
+    if "Success" in status or status == "Success":
+        session = db.query(ActiveSession).filter(ActiveSession.login_id == login_id).first()
+        if session:
+            session.login_time = now_str
+            session.status = "Online"
+            session.ip = ip
+            if user_id:
+                session.user_id = user_id
+        else:
+            session = ActiveSession(
+                user_id=user_id,
+                login_id=login_id,
+                name=name,
+                role=role,
+                login_time=now_str,
+                status="Online",
+                ip=ip,
+            )
+            db.add(session)
+
+    try:
+        db.commit()
+        db.refresh(entry)
+    except Exception as exc:
+        db.rollback()
+        print(f"[Login Log Warning] {exc}")
+    return entry
+
+
+def get_login_history(
+    db: Session,
+    user_id: Optional[int] = None,
+    limit: int = 100,
+) -> List[LoginHistory]:
+    query = db.query(LoginHistory)
+    if user_id is not None:
+        query = query.filter(LoginHistory.user_id == user_id)
+    return query.order_by(LoginHistory.id.desc()).limit(limit).all()
+
+
+def get_active_sessions(
+    db: Session,
+    user_id: Optional[int] = None,
+) -> List[ActiveSession]:
+    query = db.query(ActiveSession)
+    if user_id is not None:
+        query = query.filter(ActiveSession.user_id == user_id)
+    return query.order_by(ActiveSession.id.desc()).all()

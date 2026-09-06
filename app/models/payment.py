@@ -25,5 +25,5 @@ class Payment(Base):
 
     contact = relationship("Contact", lazy="joined")
     journal = relationship("Journal", lazy="joined")
-    journal_entry = relationship("JournalEntry", foreign_keys=[journal_entry_id], lazy="joined")
+    journal_entry = relationship("JournalEntry", foreign_keys=[journal_entry_id], lazy="selectin")
     user = relationship("User", foreign_keys=[created_by])

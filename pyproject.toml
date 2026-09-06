@@ -1,0 +1,12 @@
+[tool.pyrefly]
+search_paths = [".", "venv/Lib/site-packages"]
+
+[tool.pyright]
+venvPath = "."
+venv = "venv"
+pythonVersion = "3.13"
+extraPaths = ["."]
+
+[tool.pytest.ini_options]
+norecursedirs = ["odoo-2.O", "venv", "node_modules", "frontend", "frontend_old"]
+pythonpath = "."

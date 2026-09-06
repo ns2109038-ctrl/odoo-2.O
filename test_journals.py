@@ -7,12 +7,26 @@ client = TestClient(app)
 
 print("=== 1. Checking OpenAPI & Endpoints ===")
 openapi = client.get("/openapi.json").json()
-assert "/journals/" in openapi["paths"], "Missing /journals/ in OpenAPI docs"
+assert "/journals/" in openapi["paths"] or "/api/journals/" in openapi["paths"], "Missing /journals/ in OpenAPI docs"
 print("OpenAPI contains /journals/ endpoints under 'Journals' tag.")
 
 # Ensure we have active account IDs
 db = SessionLocal()
-accounts = {acc.account_name: acc.id for acc in db.query(Account).filter(Account.is_active == True).all()}
+required_accounts = [
+    ("Cash", "1000", "Asset"),
+    ("Bank", "1010", "Asset"),
+    ("Customer Receivable", "1100", "Asset"),
+    ("Vendor Payable", "2000", "Liability"),
+    ("Sales Income", "4000", "Income"),
+    ("Purchase Expense", "5000", "Expense"),
+]
+for acc_name, code, acc_type in required_accounts:
+    acc = db.query(Account).filter((Account.name == acc_name) | (Account.account_name == acc_name)).first()
+    if not acc:
+        db.add(Account(code=code, name=acc_name, account_name=acc_name, account_type=acc_type, is_active=True))
+db.commit()
+
+accounts = {acc.account_name or acc.name: acc.id for acc in db.query(Account).filter(Account.is_active == True).all()}
 print(f"Found active accounts in DB: {accounts}")
 
 cash_id = accounts.get("Cash", 1)
@@ -114,7 +128,7 @@ print("\n=== 9. Test Archived / Inactive Account Cannot Be Selected ===")
 # Create a temporary inactive account
 inactive_acc = db.query(Account).filter(Account.account_name == "Temp Inactive Account").first()
 if not inactive_acc:
-    inactive_acc = Account(account_name="Temp Inactive Account", account_type="Asset", is_active=False)
+    inactive_acc = Account(code="TMP998", name="Temp Inactive Account", account_name="Temp Inactive Account", account_type="Asset", is_active=False)
     db.add(inactive_acc)
     db.commit()
     db.refresh(inactive_acc)

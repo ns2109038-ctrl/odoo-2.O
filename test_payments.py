@@ -30,15 +30,24 @@ Coverage:
 import uuid
 from datetime import date
 from decimal import Decimal
+# pyrefly: ignore [missing-import]
 from fastapi.testclient import TestClient
 
+# pyrefly: ignore [missing-import]
 from app.main import app
+# pyrefly: ignore [missing-import]
 from app.db.database import SessionLocal
+# pyrefly: ignore [missing-import]
 from app.models.contact import Contact
+# pyrefly: ignore [missing-import]
 from app.models.account import Account
+# pyrefly: ignore [missing-import]
 from app.models.journal import Journal
+# pyrefly: ignore [missing-import]
 from app.models.journal_entry import JournalEntry
+# pyrefly: ignore [missing-import]
 from app.services.user_service import create_user
+# pyrefly: ignore [missing-import]
 from app.schemas.user import UserCreate
 
 client = TestClient(app)
@@ -181,6 +190,8 @@ def run_tests():
         fail("Regular user GET /api/payments -> 200", r.text)
 
     # ---- 2. Create Customer Receipt -----------------------------------------
+    receipt = {}
+    vend_pay = {}
     payload_receipt = {
         "payment_type": "customer_receipt",
         "contact_id": f["customer"].id,
@@ -297,6 +308,7 @@ def run_tests():
         fail("Invalid payment_type", r.text)
 
     # ---- 5. Update draft payment --------------------------------------------
+    # pyrefly: ignore [unbound-name]
     r = client.put(f"/api/payments/{receipt['id']}", json={
         "amount": "1750.00",
         "reference": "CHK-9901-REV",
@@ -339,6 +351,7 @@ def run_tests():
 
     # ---- 7. Post Vendor Payment (Double-Entry Accounting) -------------------
     # Vendor Payment: 800.00 -> Debit Accounts Payable, Credit Bank
+    # pyrefly: ignore [unbound-name]
     r = client.post(f"/api/payments/{vend_pay['id']}/post", headers=_auth(acc_tok))
     if r.status_code == 200:
         posted_pay = r.json()

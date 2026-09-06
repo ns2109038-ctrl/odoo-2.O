@@ -22,7 +22,7 @@ class Budget(Base):
 
     analytic_account = relationship("AnalyticAccount", lazy="joined")
     user = relationship("User", foreign_keys=[created_by])
-    lines = relationship("BudgetLine", back_populates="budget", cascade="all, delete-orphan", lazy="joined")
+    lines = relationship("BudgetLine", back_populates="budget", cascade="all, delete-orphan", lazy="selectin")
 
 
 class BudgetLine(Base):

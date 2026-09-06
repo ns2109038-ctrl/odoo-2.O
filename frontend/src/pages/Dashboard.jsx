@@ -22,37 +22,37 @@ const NAV_COLUMNS = [
   {
     key: "Sales",
     items: [
-      { label: "Sales Order",   page: "Sales" },
-      { label: "Sale Invoice",  page: "Sales" },
-      { label: "Receipt",       page: "Sales" },
+      { label: "Sales Order", page: "Sales" },
+      { label: "Sale Invoice", page: "Sales" },
+      { label: "Receipt", page: "Sales" },
     ],
   },
   {
     key: "Purchase",
     items: [
       { label: "Purchase Order", page: "Purchases" },
-      { label: "Purchase Bill",  page: "Purchases" },
-      { label: "Payment",        page: "Payments" },
+      { label: "Purchase Bill", page: "Purchases" },
+      { label: "Payment", page: "Payments" },
     ],
   },
   {
     key: "Account",
     items: [
-      { label: "Contact",           page: "Contacts" },
-      { label: "Product",           page: "Products" },
-      { label: "Analyticals",       page: "Analytics" },
+      { label: "Contact", page: "Contacts" },
+      { label: "Product", page: "Products" },
+      { label: "Analyticals", page: "Analytics" },
       { label: "Analytical Budget", page: "Budget" },
-      { label: "Chart of Account",  page: "Chart of Accounts" },
-      { label: "Journals",          page: "Journals" },
-      { label: "Journal Entries",   page: "Journal Entries" },
+      { label: "Chart of Account", page: "Chart of Accounts" },
+      { label: "Journals", page: "Journals" },
+      { label: "Journal Entries", page: "Journal Entries" },
     ],
   },
   {
     key: "Report",
     items: [
-      { label: "Balancesheet",    page: "Reports" },
+      { label: "Balancesheet", page: "Reports" },
       { label: "Profit and Loss", page: "Reports" },
-      { label: "Budget Report",   page: "Reports" },
+      { label: "Budget Report", page: "Reports" },
     ],
   },
 ];

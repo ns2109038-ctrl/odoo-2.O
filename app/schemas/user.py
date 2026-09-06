@@ -99,3 +99,30 @@ class PasswordResetConfirm(BaseModel):
         if self.confirm_password is not None and self.new_password != self.confirm_password:
             raise ValueError("Passwords do not match")
         return self
+
+
+class LoginHistoryResponse(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    login_id: str
+    name: str
+    role: str
+    timestamp: str
+    ip: str
+    status: str
+    method: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ActiveSessionResponse(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    login_id: str
+    name: str
+    role: str
+    login_time: str
+    status: str
+    ip: str
+
+    model_config = ConfigDict(from_attributes=True)

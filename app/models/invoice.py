@@ -25,13 +25,13 @@ class Invoice(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     contact = relationship("Contact", lazy="joined")
-    journal_entry = relationship("JournalEntry", foreign_keys=[journal_entry_id], lazy="joined")
+    journal_entry = relationship("JournalEntry", foreign_keys=[journal_entry_id], lazy="selectin")
     user = relationship("User", foreign_keys=[created_by])
     lines = relationship(
         "InvoiceLine",
         back_populates="invoice",
         cascade="all, delete-orphan",
-        lazy="joined",
+        lazy="selectin",
     )
 
 

@@ -42,8 +42,8 @@ def run_tests():
     db = SessionLocal()
     db_user = db.query(User).filter(User.id == user_id).first()
     assert db_user is not None
-    assert db_user.password_hash.startswith("$2b$")
-    assert db_user.password_hash != "SecurePassword123!"
+    assert str(db_user.password_hash).startswith("$2b$")
+    assert str(db_user.password_hash) != "SecurePassword123!"
     db.close()
     print("Verified in DB: Password securely hashed using bcrypt.")
 

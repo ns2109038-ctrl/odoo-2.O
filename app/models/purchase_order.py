@@ -23,7 +23,7 @@ class PurchaseOrder(Base):
 
     vendor = relationship("Contact", foreign_keys=[vendor_id], lazy="joined")
     user = relationship("User", foreign_keys=[created_by], lazy="select")
-    lines = relationship("PurchaseOrderLine", back_populates="purchase_order", cascade="all, delete-orphan", lazy="joined")
+    lines = relationship("PurchaseOrderLine", back_populates="purchase_order", cascade="all, delete-orphan", lazy="selectin")
 
 
 class PurchaseOrderLine(Base):

@@ -8,7 +8,9 @@ def _init_engine():
     db_url = getattr(settings, "DATABASE_URL", "sqlite:///./app.db")
     try:
         if db_url.startswith("postgresql"):
-            eng = create_engine(db_url, pool_pre_ping=True)
+            # Strip invalid schema parameter if present
+            clean_url = db_url.split("?schema=")[0].split("&schema=")[0]
+            eng = create_engine(clean_url, pool_pre_ping=True)
             # Test connection
             with eng.connect() as conn:
                 pass

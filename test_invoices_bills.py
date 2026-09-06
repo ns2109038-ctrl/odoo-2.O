@@ -232,6 +232,8 @@ def run_tests():
         fail("Regular user GET /api/invoices -> 200", r.text)
 
     # ---- 2. Create Customer Invoice -----------------------------------------
+    cust_inv = {}
+    vend_bill = {}
     # Chair: qty=2, unit_price=300, tax_rate=18 -> net=600, tax=108, total=708
     # Table: qty=1, unit_price=800, tax_rate=0  -> net=800, tax=0,   total=800
     # subtotal = 1400.00, tax = 108.00, total = 1508.00
